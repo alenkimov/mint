@@ -1,4 +1,4 @@
-from .account import Account
+from ..account import Account
 # from .api.errors import HTTPException
 
 

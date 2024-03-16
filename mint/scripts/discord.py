@@ -1,0 +1,3 @@
+"""
+Discord scripts (binding)
+"""

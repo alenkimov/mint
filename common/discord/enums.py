@@ -24,12 +24,3 @@ class AccountStatus(enum.StrEnum):
 
     def __str__(self):
         return self.value
-
-
-class GuildJoinStatus(enum.StrEnum):
-    UNKNOWN    = "UNKNOWN"
-    NOT_JOINED = "NOT_JOINED"
-    JOINED     = "JOINED"
-
-    def __str__(self):
-        return self.value

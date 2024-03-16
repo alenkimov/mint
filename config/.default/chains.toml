@@ -1,0 +1,19 @@
+[mainnet.56]
+name = "BSC"
+rpc = "https://rpc.ankr.com/bsc"
+explorer_url = "https://bscscan.com"
+symbol = "BNB"
+minimal_balance = 0.00016  # ether
+gas_price = 1  # gwei
+use_eip1559 = false
+batch_request_size = 10
+
+[mainnet.324]
+name = "zkSync Era"
+rpc = "https://rpc.ankr.com/zksync_era"
+explorer_url = "https://explorer.zksync.io"
+symbol = "ETH"
+minimal_balance = 0.0005  # ether
+#use_eip1559 = false
+max_fee_per_gas = 0.25  # gwei
+max_priority_fee_per_gas = 0.25  # gwei

@@ -10,7 +10,14 @@ python = "^3.11"
 better-web3 = "^3.2.1"
 tweepy-self = "^1.9.0"
 loguru = "^0.7.2"
+tortoise-orm = "^0.20.0"
+aerich = "^0.7.2"
+questionary = "^2.0.1"
+tqdm = "^4.66.2"
 
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.3.0"
 
 [build-system]
 requires = ["poetry-core"]

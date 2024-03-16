@@ -20,7 +20,7 @@ class Client:
     @account.setter
     def account(self, account: Account):
         self._account = account
-        self.http.token = account.token
+        self.http.auth_token = account.auth_token
 
     async def login(self):
         nonce = randint(1_000_000, 9_999_999)
@@ -29,19 +29,22 @@ class Client:
                    f"\n\nNonce: {nonce}")
         signature = self.account.wallet.sign_message(message)
         self.account.user = await self.http.login(self.account.wallet.address, message, signature)
-        self.account.token = self.http.token
+        self.account.auth_token = self.http.auth_token
+        logger.success(f"{self.account} Logged in")
 
     async def bind_twitter(self, auth_code):
-        self.account.user.twitter = await self.http.bind_twitter(self.account.wallet.address, auth_code)
+        self.account.user.twitter_id = await self.http.bind_twitter(self.account.wallet.address, auth_code)
+        logger.success(f"{self.account} Twitter bound")
 
     async def accept_invite(self):
         self.account.user.invite_id = await self.http.accept_invite(self.account.referrer_invite_code)
+        logger.success(f"{self.account} Account invited by {self.account.referrer_invite_code}")
 
     async def claim_energy(self):
         energy_list = await self.http.request_energy_list()
         for energy in energy_list:
             if not energy.freeze:
-                claimed_me = await self.http.claim_energy(**energy.model_dump())
+                claimed_me = await self.http.claim_energy(id=f"{energy.amount}_", **energy.model_dump())
                 logger.success(f"{self.account} Claimed {claimed_me} energy")
 
     async def complete_tasks(self):
@@ -54,6 +57,17 @@ class Client:
 
         # TODO Bridge task
         # TODO Discord task
+
+    async def request_user(self):
+        self.account.user = await self.http.request_user()
+        logger.info(f"{self.account} User data requested")
+
+    async def inject_all(self):
+        await self.request_user()
+        if not self.account.user.energy:
+            return
+
+        await self.http.inject(self.account.user.energy, self.account.wallet.address)
 
     # TODO Полив дерева
     # TODO Привязка дискорда

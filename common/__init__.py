@@ -2,7 +2,8 @@ from . import ask, config
 from .logger import setup_logger
 from .project import print_project_info
 from .author import print_author_info
-from . import discord, google
+# from . import discord, google
+from . import discord
 
 
 __all__ = [
@@ -11,5 +12,5 @@ __all__ = [
     "print_project_info",
     "print_author_info",
     "discord",
-    "google",
+    # "google",
 ]

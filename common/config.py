@@ -28,14 +28,15 @@ class ImportConfig(BaseModel):
     TWITTER_SEPARATOR: str = ":"
     DISCORD_SEPARATOR: str = ":"
     GOOGLE_SEPARATOR: str = ":"
-    TWITTER_FIELDS: tuple[str] = ("auth_token", "email", "password", "totp_secret")
-    DISCORD_FIELDS: tuple[str] = ("auth_token", "email", "password", "username")
-    GOOGLE_FIELDS: tuple[str] = ("email", "password", "totp_secret")
+    TWITTER_FIELDS: tuple[str] = ("auth_token", "username", "password", "totp_secret")
+    DISCORD_FIELDS: tuple[str] = ("auth_token", "email", "password")
+    GOOGLE_FIELDS: tuple[str] = ("email", "password", "recovery_email", "totp_secret")
 
 
 class TwitterConfig(BaseModel):
     UNLOCK_ATTEMPTS: int = 5
     USE_SUSPENDED_ACCOUNTS: bool = False
+    AUTORELOGIN: bool = True
 
 
 class CaptchaConfig(BaseModel):

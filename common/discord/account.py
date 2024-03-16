@@ -1,11 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import twitter
 
 from .enums import AccountStatus, RequiredAction
 
 
 class Account(BaseModel):
-    auth_token: str | None = None
+    auth_token: str | None = Field(max_length=72)
     username:   str | None = None
     email:      str | None = None
     phone:      str | None = None

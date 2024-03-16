@@ -2,7 +2,7 @@ from typing import Any
 
 from loguru import logger
 from curl_cffi import requests
-from twitter.base import BaseClient
+from twitter.base import BaseHTTPClient
 from twitter.utils import hidden_value
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_fixed
 
@@ -10,21 +10,21 @@ from .models import User, Task, Energy
 from .errors import HTTPException
 
 
-class HTTPClient(BaseClient):
+class HTTPClient(BaseHTTPClient):
     _DEFAULT_HEADERS = {
         'authorization': 'Bearer',
     }
 
-    def __init__(self, token: str = None, **session_kwargs):
+    def __init__(self, auth_token: str = None, **session_kwargs):
         super().__init__(**session_kwargs)
-        self.token = token
+        self.auth_token = auth_token
 
     @property
     def hidden_token(self) -> str | None:
-        if not self.token:
+        if not self.auth_token:
             return None
 
-        return hidden_value(self.token)
+        return hidden_value(self.auth_token)
 
     async def request(
         self,
@@ -39,11 +39,11 @@ class HTTPClient(BaseClient):
         headers = kwargs["headers"] = kwargs.get("headers") or {}
         params = kwargs["params"] = kwargs.get("params") or {}
 
-        if self.token and auth:
+        if self.auth_token and auth:
             if query_auth:
-                params["jwtToken"] = self.token
+                params["jwtToken"] = self.auth_token
             else:
-                headers["authorization"] = f"Bearer {self.token}"
+                headers["authorization"] = f"Bearer {self.auth_token}"
 
         # fmt: off
         log_message = f"[{self.hidden_token}] Request {method} {url}"
@@ -85,8 +85,8 @@ class HTTPClient(BaseClient):
         }
 
         response, data = await self.request("POST", url, json=payload)
-        self.token = data["access_token"]
-        user = User(**data["user"])
+        self.auth_token = data["access_token"]
+        user = User.from_raw_data(**data["user"])
         return user
 
     def is_http_exception_with_code_10001(exception):
@@ -106,10 +106,10 @@ class HTTPClient(BaseClient):
             'code': auth_code,
         }
         response, data = await self.request("POST", url, data=payload, params=query, query_auth=True)
-        twitter_user_id = data
-        return twitter_user_id
+        twitter_id = int(data)
+        return twitter_id
 
-    async def accept_invite(self, invite_code: str):
+    async def accept_invite(self, invite_code: str) -> int:
         """
         :return: Invited ID
         """
@@ -117,14 +117,13 @@ class HTTPClient(BaseClient):
         query = {"code": invite_code}
         payload = {}
         response, data = await self.request("GET", url, data=payload, params=query, query_auth=True)
-        invited_id = data["inviteId"]
-        return invited_id
+        return data["inviteId"]
 
-    async def request_user(self):
+    async def request_user(self) -> User:
         url = "https://www.mintchain.io/api/tree/user-info"
         payload = {}
         response, data = await self.request("GET", url, data=payload)
-        return User(**data)
+        return User.from_raw_data(data)
 
     async def request_energy_list(self) -> list[Energy]:
         """
@@ -133,8 +132,7 @@ class HTTPClient(BaseClient):
         url = "https://www.mintchain.io/api/tree/energy-list"
         payload = {}
         response, data = await self.request("GET", url, data=payload)
-        energy_list = [Energy(**energy_data) for energy_data in data]
-        return energy_list
+        return [Energy(**energy_data) for energy_data in data]
 
     async def claim_energy(
             self,
@@ -159,8 +157,7 @@ class HTTPClient(BaseClient):
             "id": id,
         }
         response, data = await self.request("POST", url, json=payload)
-        me_amount = data
-        return me_amount
+        return data
 
     async def request_task_list(self) -> list[Task]:
         url = "https://www.mintchain.io/api/tree/task-list"
@@ -178,3 +175,18 @@ class HTTPClient(BaseClient):
         response, data = await self.request("POST", url, json=payload)
         me_amount = data["amount"]
         return me_amount
+
+    async def inject(self, me_amount: int, address: str) -> bool:
+        url = "https://www.mintchain.io/api/tree/inject"
+        payload = {
+            "energy": me_amount,
+            "address": address
+        }
+        response, data = await self.request("POST", url, json=payload)
+        return data
+
+    async def request_asset(self):
+        url = "https://www.mintchain.io/api/tree/asset"
+        payload = {}
+        response, data = await self.request("GET", url, data=payload)
+        ...
