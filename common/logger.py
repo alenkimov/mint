@@ -1,3 +1,11 @@
+"""
+from common import setup_logger
+from paths import LOG_DIR
+from config import CONFIG
+
+setup_logger(LOG_DIR, CONFIG.LOGGING.LEVEL)
+"""
+
 import logging
 from datetime import datetime
 from pathlib import Path

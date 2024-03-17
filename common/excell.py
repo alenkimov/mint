@@ -56,7 +56,7 @@ class Excel:
     def __init__(self, columns: list[Column]) -> None:
         self.columns = columns
 
-    def create_empty_table(self, dirpath: Path, name: str):
+    def create_empty_table(self, dirpath: Path, name: str) -> Path:
         """Создает пустую таблицу с заголовками и описаниями."""
         wb = Workbook()
         ws = wb.active
@@ -76,27 +76,43 @@ class Excel:
 
         table_filepath = dirpath / f"{name}.xlsx"
         wb.save(table_filepath)
+        return table_filepath
+
+    # TODO Функция, которая читает на wb, а ws.
+    #   При этом пользователю должен выводиться список найденных в таблице ws и предлагать выбор:
+    #   1. Импортировать все ws
+    #   2. Импортировать выбранные ws (пользователь отмечает нужные ему ws)
 
     def read_table(self, filepath: Path) -> List[Dict[str, Any]]:
         """Читает данные из таблицы начиная с третьей строки."""
         wb = load_workbook(filepath)
         ws = wb.active
 
-        data = []
+        # Создаем словарь для сопоставления заголовков столбцов из файла с объектами Column
+        column_map: Dict[int, Column] = {}
+        for i, cell in enumerate(ws[1], start=1):  # Предполагаем, что заголовки находятся в первой строке
+            for column in self.columns:
+                if cell.value == column.full_header:
+                    column_map[i] = column
+                    break
+
+        data: List[Dict[str, Any]] = []
         for row in ws.iter_rows(min_row=3, values_only=True):
-            row_data = {}
-            for i, value in enumerate(row):
-                column = self.columns[i]
-                if column.group_name:
-                    if column.group_name not in row_data:
-                        row_data[column.group_name] = {}
-                    row_data[column.group_name][column.key] = value
-                else:
-                    row_data[column.key] = value
-            data.append(row_data)
+            row_data: Dict[str, Any] = {}
+            for i, value in enumerate(row, start=1):
+                column = column_map.get(i)
+                if column:
+                    if column.group_name:
+                        if column.group_name not in row_data:
+                            row_data[column.group_name] = {}
+                        row_data[column.group_name][column.key] = value
+                    else:
+                        row_data[column.key] = value
+            if row_data:  # Добавляем только если есть данные
+                data.append(row_data)
 
         return data
 
 
-def get_xlsx_filepathes(dirpath: Path) -> list[Path]:
+def get_xlsx_filepaths(dirpath: Path) -> list[Path]:
     return list(dirpath.glob("*.xlsx"))

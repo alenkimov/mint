@@ -2,8 +2,8 @@ from functools import cached_property
 
 from better_web3 import Wallet as BetterWallet
 from better_proxy import Proxy as BetterProxy
-import twitter
 from twitter.utils import hidden_value
+import twitter
 
 from tortoise.models import Model
 from tortoise import fields
@@ -51,7 +51,7 @@ class TwitterAccount(DatabaseIDMixin, Model):
     backup_code = fields.CharField(12, unique=True, null=True)
     status      = fields.CharEnumField(twitter.AccountStatus, default="UNKNOWN")
 
-    bound_by_unknown_mint_user = fields.BooleanField(default=False)
+    bound = fields.BooleanField(default=False)
     # fmt: on
 
     user = fields.OneToOneField(
@@ -83,7 +83,7 @@ class DiscordGuildJoinStatus(DatabaseIDMixin, Model):
     discord_account = fields.ForeignKeyField(
         model_name="models.DiscordAccount",
         related_name="guild_join_statuses",
-        # source_field="discord_id",  # TODO Это не работает, так как в Tortoise ORM баг
+        # source_field="discord_id",  # Это не работает, так как в Tortoise ORM баг
         to_field="id",
     )
     guild_id    = fields.IntField()
@@ -104,9 +104,9 @@ class DiscordAccount(DatabaseIDMixin, Model):
 
     auth_token      = fields.CharField(72, unique=True)
     status          = fields.CharEnumField(discord.AccountStatus, default="UNKNOWN")
-    required_action = fields.CharEnumField(discord.RequiredAction)
+    required_action = fields.CharEnumField(discord.RequiredAction, null=True)
 
-    bound_by_unknown_mint_account = fields.BooleanField(default=False)
+    bound = fields.BooleanField(default=False)
     # fmt: on
 
     @property
@@ -136,19 +136,17 @@ class Wallet(Model):
         table = "wallet"
 
     # fmt: off
-    private_key = fields.CharField(66, pk=True)
-    address     = fields.CharField(42, unique=True, index=True)
+    private_key = fields.CharField(66, unique=True)
+    address     = fields.CharField(42, pk=True)
     # ens_address = fields.CharField(251, unique=True, index=True)
     # fmt: on
-
-    async def save(self, *args, **kwargs):
-        self.address = self.address.lower()
-        self.private_key = self.private_key.lower()
-        await super().save(*args, **kwargs)
 
     @cached_property
     def better_wallet(self) -> BetterWallet:
         return BetterWallet.from_key(self.private_key)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(address={self.address})"
 
 
 class Proxy(DatabaseIDMixin, Model):
@@ -227,9 +225,6 @@ class MintUser(DatabaseIDMixin, Model):
         null=True,
     )
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}(database_id={self.database_id})"
-
 
 class MintAccount(DatabaseIDMixin, Model):
     class Meta:
@@ -237,31 +232,52 @@ class MintAccount(DatabaseIDMixin, Model):
 
     # fmt: off
     name        = fields.CharField(32, null=True)
-    group_name  = fields.CharField(32, index=True, null=True)
+    group_name  = fields.CharField(32, index=True)
 
-    auth_token = fields.CharField(177, unique=True)
+    auth_token = fields.CharField(177, unique=True, null=True)
 
-    referrer_invite_code = fields.CharField(8)
+    invite_code = fields.CharField(8, null=True)
     # fmt: on
 
+    proxy = fields.ForeignKeyField(
+        model_name='models.Proxy',
+        related_name='mint_accounts',
+        source_field="proxy_database_id",
+        to_field='database_id',
+        null=True,
+    )
     user = fields.OneToOneField(
         model_name="models.MintUser",
         related_name="account",
         source_field="mint_user_database_id",
         to_field="database_id",
-    )
-    proxy = fields.ForeignKeyField(
-        model_name='models.Proxy',
-        related_name='accounts',
-        source_field="proxy_database_id",
-        to_field='database_id',
         null=True,
+    )
+    twitter_account = fields.OneToOneField(
+        model_name="models.TwitterUser",
+        related_name="mint_account",
+        source_field="twitter_database_id",
+        to_field="database_id",
+        null=True,
+    )
+    discord_account = fields.OneToOneField(
+        model_name="models.DiscordAccount",
+        related_name="mint_account",
+        source_field="discord_database_id",
+        to_field="database_id",
+        null=True,
+    )
+    wallet = fields.OneToOneField(
+        model_name="models.Wallet",
+        related_name="mint_account",
+        source_field="wallet_address",
+        to_field="address",
     )
 
     def __str__(self):
-        name = self.name or "NO NAME"
-        proxy_representation = self.proxy.better_proxy.fixed_length or "[NO PROXY]"
-        return f"{proxy_representation}[{self.database_id}]({name})"
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}(database_id={self.database_id})"
+        group = self.group_name or "no_group"
+        name = self.name or "no_name"
+        # TODO
+        #   proxy_representation = self.proxy.better_proxy.fixed_length if self.proxy else "[NO PROXY]"
+        #   return f"{proxy_representation}[{self.database_id}]({group}.{name})"
+        return f"[{self.database_id}]({group}.{name})"

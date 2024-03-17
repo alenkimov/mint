@@ -15,7 +15,8 @@ class MobileProxyConfig(BaseModel):
 class ConcurrencyConfig(BaseModel):
     MAX_TASKS: int = 1
     MAX_RETRIES: int = 3
-    DELAY: tuple[int, int] = (0, 0)
+    DELAY_BETWEEN_ACCOUNTS: tuple[int, int] = (0, 0)
+    DELAY_BETWEEN_ACTIONS: tuple[int, int] = (0, 0)
 
 
 class PlaywrightConfig(BaseModel):

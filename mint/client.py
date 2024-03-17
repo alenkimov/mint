@@ -2,25 +2,26 @@ from random import randint
 
 from loguru import logger
 
-from .account import Account
+from .database import MintAccount
 from .api.http import HTTPClient
 from .api.models import Task
 
 
 class Client:
-    def __init__(self, account: Account, **session_kwargs):
+    def __init__(self, account: MintAccount, **session_kwargs):
         self._account = None
         self.http = HTTPClient(**session_kwargs)
         self.account = account
 
     @property
-    def account(self) -> Account:
+    def account(self) -> MintAccount:
         return self._account
 
     @account.setter
-    def account(self, account: Account):
+    def account(self, account: MintAccount):
         self._account = account
         self.http.auth_token = account.auth_token
+        self.http._session.proxy = account.proxy.better_proxy
 
     async def login(self):
         nonce = randint(1_000_000, 9_999_999)
@@ -34,11 +35,16 @@ class Client:
 
     async def bind_twitter(self, auth_code):
         self.account.user.twitter_id = await self.http.bind_twitter(self.account.wallet.address, auth_code)
+        self.account.twitter_account.bound = True
         logger.success(f"{self.account} Twitter bound")
 
+    async def bind_discord(self, auth_code):
+        # TODO Discord binding
+        ...
+
     async def accept_invite(self):
-        self.account.user.invite_id = await self.http.accept_invite(self.account.referrer_invite_code)
-        logger.success(f"{self.account} Account invited by {self.account.referrer_invite_code}")
+        self.account.user.invite_id = await self.http.accept_invite(self.account.invite_code)
+        logger.success(f"{self.account} Account invited by {self.account.invite_code}")
 
     async def claim_energy(self):
         energy_list = await self.http.request_energy_list()
@@ -58,16 +64,13 @@ class Client:
         # TODO Bridge task
         # TODO Discord task
 
-    async def request_user(self):
-        self.account.user = await self.http.request_user()
+    async def request_self(self):
+        self.account.user = await self.http.request_self()
         logger.info(f"{self.account} User data requested")
 
     async def inject_all(self):
-        await self.request_user()
-        if not self.account.user.energy:
+        await self.request_self()
+        if not self.account.user.me:
             return
 
-        await self.http.inject(self.account.user.energy, self.account.wallet.address)
-
-    # TODO Полив дерева
-    # TODO Привязка дискорда
+        await self.http.inject(self.account.user.me, self.account.wallet.address)

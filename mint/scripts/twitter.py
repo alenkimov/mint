@@ -18,13 +18,16 @@ TWITTER_OAUTH2_PARAMS = {
 }
 
 
-async def try_to_bind_twitter(mint_client: Client, proxy):
+async def try_to_bind_twitter(mint_client: Client):
     if mint_client.account.user.twitter:
         return
 
         # TODO Проверка на срок через бд
 
-    async with twitter.Client(mint_client.account.twitter, proxy=proxy) as twitter_client:
+    if mint_client.account.proxy:
+        proxy = mint_client.account.proxy.better_proxy
+
+    async with twitter.Client(mint_client.account.twitter_account, proxy=proxy) as twitter_client:
         twitter_user_data = await twitter_client.request_user_data()
 
         if twitter_user_data.followers_count < 10:

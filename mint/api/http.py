@@ -89,10 +89,6 @@ class HTTPClient(BaseHTTPClient):
         user = User.from_raw_data(**data["user"])
         return user
 
-    def is_http_exception_with_code_10001(exception):
-        """Проверка, является ли исключение HTTPException с кодом 10001."""
-        return isinstance(exception, HTTPException) and exception.code == 10001
-
     @retry(
         retry=retry_if_exception(lambda exc: isinstance(exc, HTTPException) and exc.code == 10001),
         stop=stop_after_attempt(3),
@@ -119,7 +115,7 @@ class HTTPClient(BaseHTTPClient):
         response, data = await self.request("GET", url, data=payload, params=query, query_auth=True)
         return data["inviteId"]
 
-    async def request_user(self) -> User:
+    async def request_self(self) -> User:
         url = "https://www.mintchain.io/api/tree/user-info"
         payload = {}
         response, data = await self.request("GET", url, data=payload)
