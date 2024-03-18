@@ -3,7 +3,6 @@ from twitter.utils import load_toml
 
 from common.config import (
     LoggingConfig,
-    ImportConfig,
     TwitterConfig,
     CaptchaConfig,
     ConcurrencyConfig,
@@ -18,7 +17,6 @@ class MintConfig(BaseModel):
 class Config(BaseModel):
     LOGGING: LoggingConfig
     CONCURRENCY: ConcurrencyConfig
-    IMPORT: ImportConfig
     TWITTER: TwitterConfig
     CAPTCHA: CaptchaConfig
     MINT: MintConfig
