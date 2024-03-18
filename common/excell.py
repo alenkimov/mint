@@ -2,6 +2,7 @@ from typing import Any, List, Dict
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 
@@ -83,21 +84,18 @@ class Excel:
     #   1. Импортировать все ws
     #   2. Импортировать выбранные ws (пользователь отмечает нужные ему ws)
 
-    def read_table(self, filepath: Path) -> List[Dict[str, Any]]:
+    def read_worksheet(self, worksheet: Worksheet) -> List[Dict[str, Any]]:
         """Читает данные из таблицы начиная с третьей строки."""
-        wb = load_workbook(filepath)
-        ws = wb.active
-
         # Создаем словарь для сопоставления заголовков столбцов из файла с объектами Column
         column_map: Dict[int, Column] = {}
-        for i, cell in enumerate(ws[1], start=1):  # Предполагаем, что заголовки находятся в первой строке
+        for i, cell in enumerate(worksheet[1], start=1):  # Предполагаем, что заголовки находятся в первой строке
             for column in self.columns:
                 if cell.value == column.full_header:
                     column_map[i] = column
                     break
 
         data: List[Dict[str, Any]] = []
-        for row in ws.iter_rows(min_row=3, values_only=True):
+        for row in worksheet.iter_rows(min_row=3, values_only=True):
             row_data: Dict[str, Any] = {}
             for i, value in enumerate(row, start=1):
                 column = column_map.get(i)
@@ -116,3 +114,15 @@ class Excel:
 
 def get_xlsx_filepaths(dirpath: Path) -> list[Path]:
     return list(dirpath.glob("*.xlsx"))
+
+
+def get_worksheets(filepath: Path) -> dict[str, Worksheet]:
+    """
+    Загружает рабочую книгу из указанного файла и возвращает словарь её листов,
+    где ключи — это названия листов, а значения — объекты листов.
+
+    :param filepath: Путь к файлу рабочей книги.
+    :return: Словарь, где ключи — названия листов, а значения — листы.
+    """
+    workbook = load_workbook(filepath)
+    return {sheet.title: sheet for sheet in workbook.worksheets}

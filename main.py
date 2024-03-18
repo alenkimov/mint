@@ -9,15 +9,22 @@ from better_proxy import Proxy as BetterProxy
 import questionary
 
 from common import print_project_info, print_author_info, setup_logger
-from common.excell import get_xlsx_filepaths
+from common.excell import get_xlsx_filepaths, get_worksheets
 
 from mint.paths import INPUT_DIR, DATABASE_FILEPATH, LOG_DIR
 from mint.config import CONFIG
 from mint.excell import excell
 from mint.client import Client as MintClient
 from mint.scripts import try_to_bind_twitter, try_to_invite
-from mint.database import get_accounts_by_groups, get_groups
-from mint.database.models import MintAccount, DiscordAccount, TwitterAccount, Proxy, Wallet, TwitterUser
+from mint.database import (
+    get_accounts_by_groups,
+    get_groups, MintAccount,
+    DiscordAccount,
+    TwitterAccount,
+    Proxy,
+    Wallet,
+    TwitterUser,
+)
 
 
 setup_logger(LOG_DIR, CONFIG.LOGGING.LEVEL)
@@ -38,15 +45,19 @@ async def select_and_import_table():
         print(f"Created template XLSX table: {template_table_filepath}")
         return
     elif len(table_filepaths) == 1:
-        table_filepath = table_filepaths[0]
+        selected_table_filepath = table_filepaths[0]
     else:
         table_filenames = [filepath.name for filepath in table_filepaths]
-        table_filename = await questionary.select("Which table?", choices=table_filenames).ask_async()
-        table_filepath = INPUT_DIR / table_filename
+        selected_table_filename = await questionary.select("Which table?", choices=table_filenames).ask_async()
+        selected_table_filepath = INPUT_DIR / selected_table_filename
 
-    table_data = excell.read_table(table_filepath)
+    worksheets = get_worksheets(selected_table_filepath)
 
-    print(f"Loaded {len(table_data)} rows from {table_filepath.name}")
+    selected_worksheet_name = await questionary.select("Which worksheet?", choices=worksheets).ask_async()
+    selected_worksheet = worksheets[selected_worksheet_name]
+    table_data = excell.read_worksheet(selected_worksheet)
+
+    print(f"Loaded {len(table_data)} rows from {selected_table_filepath.name} ({selected_worksheet_name})")
     for mint_account_data in table_data:
         group_name = mint_account_data["group_name"]
         name = mint_account_data["name"]
