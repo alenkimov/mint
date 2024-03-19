@@ -86,8 +86,7 @@ class HTTPClient(BaseHTTPClient):
 
         response, data = await self.request("POST", url, json=payload)
         self.auth_token = data["access_token"]
-        user = User.from_raw_data(**data["user"])
-        return user
+        return User(**data["user"])
 
     @retry(
         retry=retry_if_exception(lambda exc: isinstance(exc, HTTPException) and exc.code == 10001),
@@ -119,7 +118,7 @@ class HTTPClient(BaseHTTPClient):
         url = "https://www.mintchain.io/api/tree/user-info"
         payload = {}
         response, data = await self.request("GET", url, data=payload)
-        return User.from_raw_data(data)
+        return User(**data)
 
     async def request_energy_list(self) -> list[Energy]:
         """

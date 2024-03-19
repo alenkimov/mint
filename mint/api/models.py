@@ -1,6 +1,7 @@
+from typing import Optional
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Sign(BaseModel):
@@ -10,56 +11,41 @@ class Sign(BaseModel):
 
 class User(BaseModel):
     id: int
-    tree_id: int | None
+    tree_id: Optional[int] = Field(None, alias="treeId")
 
-    wallet_address: str
-    wallet_ens_address: str | None
+    wallet_address: str = Field(..., alias="address")
+    wallet_ens_address: Optional[str] = Field(None, alias="ens")
 
-    me: int
-    injected_me: int
+    me: int = Field(..., alias="energy")
+    injected_me: int = Field(..., alias="tree")
 
-    invite_id: int | None
-    invite_code: str | None
-    invite_percent: int | None
+    invite_id: Optional[int] = Field(None, alias="inviteId")
+    invite_code: Optional[str] = Field(None, alias="code")
+    invite_percent: Optional[int] = Field(None, alias="invitePercent")
 
     type: str
-    nft_id: int
-    nft_pass: int
+    nft_id: int = Field(..., alias="nft_id")
+    nft_pass: int = Field(..., alias="nft_pass")
 
-    stake_id: int
+    stake_id: int = Field(..., alias="stake_id")
     signin: int
-    twitter_id: int | None
-    discord_id: int | None
+    twitter_id: Optional[int] = Field(None, alias="twitter")
+    discord_id: Optional[int] = Field(None, alias="discord")
     status: str
-    created_at: str
-    signs: list[Sign] | None = None
+    created_at: datetime = Field(alias="createdAt")
+    signs: Optional[list[Sign]] = None
 
+    @field_validator('created_at', mode="before")
     @classmethod
-    def from_raw_data(cls, data):
-        created_at = data["createdAt"].split(".")[0]
-        created_at = datetime.fromisoformat(created_at)
-        values = {
-            "id": data["id"],
-            "tree_id": data["treeId"],
-            "wallet_address": data["address"],
-            "wallet_ens_address": data["ens"],
-            "me": data["energy"],
-            "injected_me": data["tree"],
-            "invite_id": data["inviteId"],
-            "invite_code": data["code"],
-            "invite_percent": data["invitePercent"],
-            "type": data["type"],
-            "nft_id": data["nft_id"],
-            "nft_pass": data["nft_pass"],
-            "stake_id": data["stake_id"],
-            "signin": data["signin"],
-            "twitter_id": int(data["twitter"]),
-            "discord_id": int(data["discord"]),
-            "status": data["status"],
-            "signs": data["signs"],
-            "created_at": created_at,
-        }
-        return cls(**values)
+    def parse_created_at(cls, v):
+        if isinstance(v, str):
+            return datetime.fromisoformat(v.split(".")[0])
+        return v
+
+    @field_validator('twitter_id', 'discord_id', mode="before")
+    @classmethod
+    def str_to_int(cls, v):
+        return int(v) if v is not None and v.isdigit() else v
 
 
 class Task(BaseModel):

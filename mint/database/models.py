@@ -14,25 +14,17 @@ from common import discord
 from .mixins import DatabaseIDMixin
 
 
-# class Email(Model):
-#     class Meta:
-#         table = "email"
-#
-#     database_id = fields.IntField(pk=True)
-#     email = fields.CharField(254, unique=True, null=True)
-
-
-class TwitterUser(DatabaseIDMixin, Model):
+class TwitterUser(Model):
     class Meta:
         table = "twitter_user"
 
     # fmt: off
-    id              = fields.IntField(null=True, unique=True, index=True)
+    id              = fields.IntField(pk=True)
     username        = fields.CharField(100, null=True, unique=True)
-    name            = fields.CharField(50, null=True)
-    created_at      = fields.DatetimeField(null=True)
+    name            = fields.CharField(50,  null=True)
     description     = fields.CharField(160, null=True)
-    location        = fields.CharField(30, null=True)
+    location        = fields.CharField(30,  null=True)
+    created_at      = fields.DatetimeField(null=True)
     followers_count = fields.IntField(null=True)
     friends_count   = fields.IntField(null=True)
     # fmt: on
@@ -43,12 +35,13 @@ class TwitterAccount(DatabaseIDMixin, Model):
         table = "twitter_account"
 
     # fmt: off
-    auth_token  = fields.CharField(40, unique=True, null=True)
+    auth_token  = fields.CharField(40,  unique=True, null=True)
     ct0         = fields.CharField(160, unique=True, null=True)
-    password    = fields.CharField(128, null=True)
+    username    = fields.CharField(100, unique=True, null=True)
+    password    = fields.CharField(128,              null=True)
     email       = fields.CharField(254, unique=True, null=True)
-    totp_secret = fields.CharField(16, unique=True, null=True)
-    backup_code = fields.CharField(12, unique=True, null=True)
+    totp_secret = fields.CharField(16,  unique=True, null=True)
+    backup_code = fields.CharField(12,  unique=True, null=True)
     status      = fields.CharEnumField(twitter.AccountStatus, default="UNKNOWN")
 
     bound = fields.BooleanField(default=False)
@@ -57,8 +50,8 @@ class TwitterAccount(DatabaseIDMixin, Model):
     user = fields.OneToOneField(
         model_name="models.TwitterUser",
         related_name="account",
-        source_field="twitter_user_database_id",
-        to_field="database_id",
+        source_field="twitter_user_id",
+        to_field="id",
         null=True,
     )
 
@@ -175,33 +168,38 @@ class Proxy(DatabaseIDMixin, Model):
         return self.better_proxy.fixed_length
 
 
-class MintUser(DatabaseIDMixin, Model):
+class MintUser(Model):
     class Meta:
         table = "mint_user"
 
     # fmt: off
-    id             = fields.IntField(unique=True, index=True)
-    tree_id        = fields.IntField(unique=True)
+    id             = fields.IntField(pk=True)
+    tree_id        = fields.IntField(unique=True, null=True)
 
-    wallet_ens_address = fields.CharField(251, unique=True)
+    wallet_ens_address = fields.CharField(251, unique=True, null=True)
+    wallet = fields.OneToOneField(
+        model_name="models.Wallet",
+        related_name="mint_user",
+        source_field="wallet_address",
+        to_field="address",
+        null=True,
+    )
 
-    invite_id      = fields.IntField(unique=True)
-    invite_code    = fields.CharField(8, unique=True)
-    invite_percent = fields.IntField()
+    invite_id      = fields.IntField(unique=True, null=True)
+    invite_code    = fields.CharField(8, unique=True, null=True)
+    invite_percent = fields.IntField(null=True)
 
     me             = fields.IntField()
     injected_me    = fields.IntField()
 
     type           = fields.CharField(100)
-    stake_id       = fields.IntField(unique=True)
-    nft_id         = fields.IntField(unique=True)
+    stake_id       = fields.IntField()
+    nft_id         = fields.IntField()
     nft_pass       = fields.IntField()
     signin         = fields.IntField()
     status         = fields.CharField(100)
     created_at     = fields.DatetimeField()
     # signs          = fields.JSONField(null=True)
-
-    # fmt: on
 
     twitter_user = fields.OneToOneField(
         model_name="models.TwitterUser",
@@ -217,13 +215,7 @@ class MintUser(DatabaseIDMixin, Model):
         to_field="id",
         null=True,
     )
-    wallet = fields.OneToOneField(
-        model_name="models.Wallet",
-        related_name="mint_user",
-        source_field="wallet_address",
-        to_field="address",
-        null=True,
-    )
+    # fmt: on
 
 
 class MintAccount(DatabaseIDMixin, Model):
@@ -231,12 +223,10 @@ class MintAccount(DatabaseIDMixin, Model):
         table = "mint_account"
 
     # fmt: off
-    name        = fields.CharField(32, null=True)
-    group_name  = fields.CharField(32, index=True)
-
-    auth_token = fields.CharField(177, unique=True, null=True)
-
-    invite_code = fields.CharField(8, null=True)
+    group_name  = fields.CharField(32,  index=True)
+    name        = fields.CharField(32,  null=True)
+    auth_token  = fields.CharField(200, null=True, unique=True)
+    invite_code = fields.CharField(8,   null=True)
     # fmt: on
 
     proxy = fields.ForeignKeyField(
@@ -249,12 +239,12 @@ class MintAccount(DatabaseIDMixin, Model):
     user = fields.OneToOneField(
         model_name="models.MintUser",
         related_name="account",
-        source_field="mint_user_database_id",
-        to_field="database_id",
+        source_field="mint_user_id",
+        to_field="id",
         null=True,
     )
     twitter_account = fields.OneToOneField(
-        model_name="models.TwitterUser",
+        model_name="models.TwitterAccount",
         related_name="mint_account",
         source_field="twitter_database_id",
         to_field="database_id",

@@ -2,7 +2,7 @@ from random import randint
 
 from loguru import logger
 
-from .database import MintAccount
+from .database import MintAccount, MintUser
 from .api.http import HTTPClient
 from .api.models import Task
 
@@ -24,18 +24,28 @@ class Client:
         self.http._session.proxy = account.proxy.better_proxy
 
     async def login(self):
+        if self.account.auth_token:
+            logger.info(f"{self.account} Using saved auth_token")
+            return
+
         nonce = randint(1_000_000, 9_999_999)
+        better_wallet = self.account.wallet.better_wallet
         message = (f"You are participating in the Mint Forest event: "
-                   f"\n {self.account.wallet.address}"
+                   f"\n {better_wallet.address}"
                    f"\n\nNonce: {nonce}")
-        signature = self.account.wallet.sign_message(message)
-        self.account.user = await self.http.login(self.account.wallet.address, message, signature)
+        signature = better_wallet.sign_message(message)
+        user = await self.http.login(better_wallet.address, message, signature)
         self.account.auth_token = self.http.auth_token
+        self.account.user, _ = await MintUser.update_or_create(**user.model_dump(exclude={"signs"}))
+        await self.account.user.save()
+        await self.account.save()
         logger.success(f"{self.account} Logged in")
 
     async def bind_twitter(self, auth_code):
         self.account.user.twitter_id = await self.http.bind_twitter(self.account.wallet.address, auth_code)
         self.account.twitter_account.bound = True
+        await self.account.user.save()
+        await self.account.twitter_account.save()
         logger.success(f"{self.account} Twitter bound")
 
     async def bind_discord(self, auth_code):
@@ -44,6 +54,7 @@ class Client:
 
     async def accept_invite(self):
         self.account.user.invite_id = await self.http.accept_invite(self.account.invite_code)
+        await self.account.user.save()
         logger.success(f"{self.account} Account invited by {self.account.invite_code}")
 
     async def claim_energy(self):
@@ -65,7 +76,9 @@ class Client:
         # TODO Discord task
 
     async def request_self(self):
-        self.account.user = await self.http.request_self()
+        user = await self.http.request_self()
+        self.account.user.update_from_dict(user.model_dump())
+        await self.account.user.save()
         logger.info(f"{self.account} User data requested")
 
     async def inject_all(self):

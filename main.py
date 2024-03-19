@@ -88,11 +88,8 @@ async def select_and_import_table():
                 mint_account_data["twitter"]["password"] or
                 mint_account_data["twitter"]["totp_secret"]
         ):
-            username = mint_account_data["twitter"].pop("username")
-
             db_mint_account.twitter_account, _ = await TwitterAccount.update_or_create(**mint_account_data["twitter"])
-            if username:
-                db_mint_account.twitter_account.user, _ = await TwitterUser.update_or_create(username=username)
+            await db_mint_account.twitter_account.save()
 
         if mint_account_data["discord"]["auth_token"]:
             db_mint_account.discord_account, _ = await DiscordAccount.update_or_create(**mint_account_data["discord"])
@@ -106,6 +103,7 @@ async def select_and_process_group():
 
     if not groups:
         print(f"Import accounts before!")
+        return
 
     # Пользователь выбирает группы (хотя бы одну)
     while True:
@@ -123,13 +121,14 @@ async def select_and_process_group():
     for mint_account in mint_accounts:
         mint_client = MintClient(mint_account)
         await mint_client.login()
-        await try_to_bind_twitter(mint_client)
-        await try_to_invite(mint_client)
-        await mint_client.complete_tasks()
-        await mint_client.claim_energy()
-        await mint_client.inject_all()
-
-        await asyncio.sleep(randint(**CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS))
+        # await try_to_bind_twitter(mint_client)
+        # await try_to_invite(mint_client)
+        # await mint_client.complete_tasks()
+        # await mint_client.claim_energy()
+        # await mint_client.inject_all()
+        #
+        # await asyncio.sleep(randint(**CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS))
+        ...
 
 
 MODULES = {
@@ -151,9 +150,9 @@ async def main():
     )
     await Tortoise.generate_schemas()
 
+    print_project_info()
+    print_author_info()
     while True:
-        print_project_info()
-        print_author_info()
         module = await select_module(MODULES)
 
         await module()
