@@ -77,10 +77,10 @@ async def select_and_import_table():
     print(f"Loaded {len(table_data)} rows from {selected_table_filepath.name} ({selected_worksheet_name})")
     async with AsyncSessionmaker() as session:
         for mint_account_data in table_data:
-            group_name = mint_account_data["group_name"]
+            group = mint_account_data["group"]
             name = mint_account_data["name"]
             invite_code = mint_account_data["mint"]["invite_code"]
-            print(f"Group: {group_name}. Account name: {name}. Invite code: {invite_code}")
+            print(f"Group: {group}. Account name: {name}. Invite code: {invite_code}")
 
             wallet = BetterWallet.from_key(mint_account_data["wallet"]["private_key"])
             wallet_defaults = {
@@ -96,7 +96,7 @@ async def select_and_import_table():
             # По этому кошельку берем или создаем Mint аккаунт
             # здесь я использую update_or_create, чтобы можно было, изменив данные в таблице, изменить их и в бд
             mint_account_defaults = {
-                "group_name": group_name,
+                "group": group,
                 "name": name,
                 "invite_code": invite_code,
                 "wallet": db_wallet,

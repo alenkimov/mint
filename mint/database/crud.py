@@ -52,7 +52,7 @@ async def update_or_create(session: AsyncSession, model: Type[T], defaults: dict
 
 
 async def get_groups(session: AsyncSession) -> set[str]:
-    query = select(func.lower(MintAccount.group_name))
+    query = select(func.lower(MintAccount.group))
     groups = set(await session.scalars(query))
     return groups
 
@@ -72,7 +72,7 @@ async def get_accounts_by_groups(session: AsyncSession, groups: list[str]) -> li
         # joinedload(MintAccount.user.wallet),
         # joinedload(MintAccount.user.twitter_user),
         # joinedload(MintAccount.user.discord_account),
-    ).filter(func.lower(MintAccount.group_name).in_(groups))
+    ).filter(func.lower(MintAccount.group).in_(groups))
 
     accounts = list(await session.scalars(query))
     return accounts

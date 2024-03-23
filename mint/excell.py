@@ -2,8 +2,8 @@ from common.excell import Excel, Column
 
 # fmt: off
 COLUMNS = [
-    Column("Group name",  "Group name",                    "group_name", max_length=12),
-    Column("Name",        "Account name",                  "name",       max_length=12),
+    Column("Group name",  "Group name",                    "group", max_length=16),
+    Column("Name",        "Account name",                  "name",  max_length=16),
     Column("Proxy",       "Proxy: any format",             "proxy"),
     Column("Invite code", "Referrer invite code",          "invite_code", group_name="mint"),
     Column("Private key", "Private key",                   "private_key", group_name="wallet", required=True),
