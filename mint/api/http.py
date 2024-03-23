@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from loguru import logger
@@ -60,8 +61,10 @@ class HTTPClient(BaseHTTPClient):
         response = await self._session.request(method, url, **kwargs)
 
         data = response.text
-        if response.headers["content-type"].startswith("application/json"):
+        try:
             data = response.json()
+        except json.decoder.JSONDecodeError:
+            pass
 
         # fmt: off
         log_message = (f"[{self.hidden_token}] Response {method} {url}"
