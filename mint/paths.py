@@ -20,7 +20,8 @@ INPUT_DIR = BASE_DIR / "input"
 
 # Database
 DATABASES_DIR = INPUT_DIR / ".db"
-DATABASE_FILEPATH = DATABASES_DIR / "mint.db"
+DATABASE_FILEPATH = DATABASES_DIR / "mintchain.db"
+ALEMBIC_INI = BASE_DIR / "alembic.ini"
 
 # Creating dirs and files
 _dirs = (INPUT_DIR, DATABASES_DIR, LOG_DIR)

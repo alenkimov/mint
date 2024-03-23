@@ -7,14 +7,16 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
+discord-py-self = {git = "https://github.com/alenkimov/discord.py-self", rev = "tls"}
 better-web3 = "^3.2.1"
 tweepy-self = "^1.9.0"
-loguru = "^0.7.2"
-tortoise-orm = "^0.20.0"
-aerich = "^0.7.2"
-questionary = "^2.0.1"
-tqdm = "^4.66.2"
+loguru = "^0.7"
+questionary = "^2"
+tqdm = "^4.66"
 openpyxl = "^3.1.2"
+sqlalchemy = "^2"
+aiosqlite = "^0.20"
+alembic = "^1.13"
 
 
 [tool.poetry.group.dev.dependencies]

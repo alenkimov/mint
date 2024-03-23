@@ -6,12 +6,13 @@ from twitter.base import BaseHTTPClient
 from twitter.utils import hidden_value
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_fixed
 
-from .models import User, Task, Energy
+from .models import User, Task, Energy, Asset
 from .errors import HTTPException
 
 
 class HTTPClient(BaseHTTPClient):
     _DEFAULT_HEADERS = {
+        'authority': 'www.mintchain.io',
         'authorization': 'Bearer',
     }
 
@@ -33,16 +34,20 @@ class HTTPClient(BaseHTTPClient):
         *,
         auth: bool = True,
         query_auth: bool = False,
+        payload_auth: bool = False,
         **kwargs,
     ) -> tuple[requests.Response, Any]:
         # cookies = kwargs["cookies"] = kwargs.get("cookies") or {}
-        headers = kwargs["headers"] = kwargs.get("headers") or {}
-        params = kwargs["params"] = kwargs.get("params") or {}
 
         if self.auth_token and auth:
             if query_auth:
+                params = kwargs["params"] = kwargs.get("params") or {}
                 params["jwtToken"] = self.auth_token
+            if payload_auth:
+                payload = kwargs["json"] = kwargs.get("json") or {}
+                payload["jwtToken"] = self.auth_token
             else:
+                headers = kwargs["headers"] = kwargs.get("headers") or {}
                 headers["authorization"] = f"Bearer {self.auth_token}"
 
         # fmt: off
@@ -88,19 +93,18 @@ class HTTPClient(BaseHTTPClient):
         self.auth_token = data["access_token"]
         return User(**data["user"])
 
-    @retry(
-        retry=retry_if_exception(lambda exc: isinstance(exc, HTTPException) and exc.code == 10001),
-        stop=stop_after_attempt(3),
-        wait=wait_fixed(30),
-    )
-    async def bind_twitter(self, address: str, auth_code: str):
+    # @retry(
+    #     retry=retry_if_exception(lambda exc: isinstance(exc, HTTPException) and exc.message == ""),
+    #     stop=stop_after_attempt(3),
+    #     wait=wait_fixed(30),
+    # )
+    async def bind_twitter(self, address: str, auth_code: str) -> int:
         url = "https://www.mintchain.io/api/twitter/verify"
-        payload = {}
         query = {
             'address': address,
             'code': auth_code,
         }
-        response, data = await self.request("POST", url, data=payload, params=query, query_auth=True)
+        response, data = await self.request("POST", url, params=query, query_auth=True)
         twitter_id = int(data)
         return twitter_id
 
@@ -110,14 +114,12 @@ class HTTPClient(BaseHTTPClient):
         """
         url = "https://www.mintchain.io/api/tree/invitation"
         query = {"code": invite_code}
-        payload = {}
-        response, data = await self.request("GET", url, data=payload, params=query, query_auth=True)
+        response, data = await self.request("GET", url, params=query, query_auth=True)
         return data["inviteId"]
 
     async def request_self(self) -> User:
         url = "https://www.mintchain.io/api/tree/user-info"
-        payload = {}
-        response, data = await self.request("GET", url, data=payload)
+        response, data = await self.request("GET", url)
         return User(**data)
 
     async def request_energy_list(self) -> list[Energy]:
@@ -180,8 +182,22 @@ class HTTPClient(BaseHTTPClient):
         response, data = await self.request("POST", url, json=payload)
         return data
 
-    async def request_asset(self):
+    async def request_assets(self) -> list[Asset]:
         url = "https://www.mintchain.io/api/tree/asset"
         payload = {}
         response, data = await self.request("GET", url, data=payload)
-        ...
+        return [Asset(**asset_data) for asset_data in data]
+
+    async def open_box(self, box_id: int) -> int | None:
+        url = "https://www.mintchain.io/api/tree/open-box"
+        payload = {"boxId": box_id}
+        response, data = await self.request("POST", url, data=payload)
+        return data["energy"]
+
+    async def verify_wallet(self) -> bool:
+        """
+        :return: Verified or not
+        """
+        url = "https://www.mintchain.io/api/wallet/verify"
+        response, data = await self.request("POST", url, payload_auth=True)
+        return data["data"]

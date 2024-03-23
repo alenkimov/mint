@@ -1,7 +1,16 @@
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class Asset(BaseModel):
+    id: int
+    uid: int
+    reward: Any
+    type: str
+    openAt: Any
+    createAt: str
 
 
 class Sign(BaseModel):
@@ -19,9 +28,9 @@ class User(BaseModel):
     me: int = Field(..., alias="energy")
     injected_me: int = Field(..., alias="tree")
 
-    invite_id: Optional[int] = Field(None, alias="inviteId")
-    invite_code: Optional[str] = Field(None, alias="code")
-    invite_percent: Optional[int] = Field(None, alias="invitePercent")
+    inviter_user_id: Optional[int] = Field(None, alias="inviteId")
+    invite_code:     Optional[str] = Field(None, alias="code")
+    invite_percent:  Optional[int] = Field(None, alias="invitePercent")
 
     type: str
     nft_id: int = Field(..., alias="nft_id")

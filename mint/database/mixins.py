@@ -1,33 +1,27 @@
-from tortoise import fields
-
-# from twitter.utils import hidden_value
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
 
 
 class DatabaseIDMixin:
-    database_id = fields.IntField(pk=True)
+    database_id: Mapped[int] = mapped_column(primary_key=True)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(database_id={self.database_id})"
 
 
-# class IDMixin:
-#     id = fields.IntField(null=True, unique=True, index=True)
+class IDMixin:
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(id={self.id})"
 
 
-# class AuthTokenMixin(DatabaseIDMixin):
-#     auth_token = fields.TextField(unique=True, null=True)
-#
-#     @property
-#     def hidden_auth_token(self) -> str | None:
-#         return hidden_value(self.auth_token) if self.auth_token else None
-#
-#     def __repr__(self):
-#         return f"{self.__class__.__name__}(database_id={self.database_id}, auth_token={self.hidden_auth_token})"
+# TODO Переделать AuthTokenMixin на Annotated
+class AuthTokenMixin:
+    auth_token: Mapped[str | None] = mapped_column(unique=True)
 
 
-# class AccountMixin(DatabaseIDMixin):
-#     ...
-
-
-# class UserMixin(DatabaseIDMixin):
-#     ...
+# TODO Переделать EmailMixin на Annotated
+class EmailMixin:
+    email: Mapped[str | None] = mapped_column(String(254), unique=True)

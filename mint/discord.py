@@ -1,28 +1,25 @@
-"""
-Discord scripts (binding)
-"""
-
 import asyncio
 from typing import Any
 
 from loguru import logger
 from yarl import URL
+
+from better_proxy import Proxy as BetterProxy
+
 import discord
 
-from .api.client import GombleClient
-from .api.models import Quest
+from .database import DiscordAccount
 
 
-class GombleOAuth2(discord.Client):
-    _VERIFY_CHANNEL_ID = 948843667194519607
-    _VERIFY_MESSAGE_ID = 969127174319788092
-    _VERIFY_REACTION = '✅'
+class DiscordClient(discord.Client):
+    # _VERIFY_CHANNEL_ID = 948843667194519607
+    # _VERIFY_MESSAGE_ID = 969127174319788092
+    # _VERIFY_REACTION = '✅'
 
-    def __init__(self, gomble: GombleClient, quest: Quest, **options):
-        options["proxy"] = str(gomble.account.proxy) if gomble.account.proxy else None
+    def __init__(self, account: DiscordAccount, proxy: str | BetterProxy, **options):
+        self.db_account = account
+        options["proxy"] = str(proxy) if proxy else None
         super().__init__(**options)
-        self.gomble = gomble
-        self.quest = quest
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
         await self.close()
