@@ -21,7 +21,8 @@
   - Install the required dependencies and create the database using alembic with the following command or by running the `INSTALL.bat` file:
     ```bash
     poetry install
-    ```
+    poetry run alembic upgrade head
+      ```
   - Start the script with the following command or by running the `START.bat`:
     ```bash
     poetry run python main.py
@@ -55,6 +56,7 @@ cd mint
 - Install the required dependencies and create the database using alembic:
 ```bash
 poetry install
+poetry run alembic upgrade head
 ```
 - Run the script:
 ```bash
