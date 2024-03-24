@@ -22,7 +22,9 @@ import questionary
 from loguru import logger
 from curl_cffi import requests
 
-from common import print_project_info, print_author_info, setup_logger
+from common.project import print_project_info
+from common.author import print_author_info
+from common.logger import setup_logger
 from common.excell import get_xlsx_filepaths, get_worksheets
 
 from mint.paths import INPUT_DIR, DATABASE_FILEPATH, LOG_DIR
@@ -84,7 +86,7 @@ async def select_and_import_table():
             group = mint_account_data["group"]
             name = mint_account_data["name"]
             invite_code = mint_account_data["mint"]["invite_code"]
-            print(f"Group: {group}. Account name: {name}. Invite code: {invite_code}")
+            print(f"Group: '{group}'. Invite code: {invite_code}")
 
             wallet = BetterWallet.from_key(mint_account_data["wallet"]["private_key"])
             wallet_defaults = {
@@ -158,10 +160,13 @@ async def register_and_claim(mint_account: MintAccount) -> bool:
     """
     :return: Interacted or not
     """
-    mint_client = MintClient(mint_account)
-
     interacted = False
 
+    if mint_account.wallet.verification_failed:
+        logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
+        return interacted
+
+    mint_client = MintClient(mint_account)
     interacted |= await mint_client.login()
     interacted |= await mint_client.try_to_verify_wallet()
     interacted |= await mint_client.try_to_bind_twitter()
@@ -194,9 +199,16 @@ async def select_and_process_group():
         # Запрос аккаунтов выбранных групп
         mint_accounts = await get_accounts_by_groups(session, selected_groups)
 
+    # run_forever = await questionary.confirm("Run forever?").ask_async()
+
+    # if run_forever:
+    #     print(f"Аккаунты равномерно распределены по суткам. Не выключайте скрипт.")
+
     for mint_account in mint_accounts:
         retries = CONFIG.CONCURRENCY.MAX_RETRIES
         while retries > 0:
+            # Функция будет вызываться повторно, если не произведен выход из цикла (break)
+
             try:
                 interacted = await register_and_claim(mint_account)
 
@@ -229,7 +241,6 @@ async def select_and_process_group():
                         break
 
                 logger.error(f"{mint_account} {exc}")
-                # После этих ошибок не нужно делать повторную попытку, поэтому выходим из цикла
                 break
             except requests.errors.RequestsError as exc:
                 if exc.code in (23, 28, 35, 56, 7):
@@ -240,11 +251,12 @@ async def select_and_process_group():
             retries -= 1
             if retries > 0:
                 # Пауза перед следующей попыткой
+                sleep_time = CONFIG.CONCURRENCY.DELAY_BETWEEN_RETRIES
                 logger.warning(f"{mint_account}"
                                f" Не удалось завершить выполнение."
-                               f" Повторная попытка через 60s."
+                               f" Повторная попытка через {sleep_time}s."
                                f" Осталось попыток: {retries}.")
-                await asyncio.sleep(60)
+                await asyncio.sleep(sleep_time)
 
 
 MODULES = {

@@ -1,11 +1,19 @@
 [LOGGING]
 LEVEL = "INFO"
 
-[MINT]
-DEFAULT_INVITE_CODE = "304799BB"
+[CONCURRENCY]
+MAX_TASKS = 1
+MAX_RETRIES = 3
+DELAY_BETWEEN_RETRIES = 5  # sec.
+#DELAY_BETWEEN_ACTIONS = [0, 0]  # [min sec., max sec.]
+DELAY_BETWEEN_ACCOUNTS = [180, 360]  # [min sec., max sec.]
+
+[REQUESTS]
+TIMEOUT = 10  # sec.
 
 [TWITTER]
-UNLOCK_ATTEMPTS = 5
+AUTO_RELOGIN = true
+MAX_UNLOCK_ATTEMPTS = 5
 USE_SUSPENDED_ACCOUNTS = false
 
 [CAPTCHA]
@@ -14,8 +22,21 @@ CAPSOLVER_API_KEY = ""
 [TRANSACTION]
 WAIT_FOR_TX_RECEIPT = false
 
-[CONCURRENCY]
-MAX_TASKS = 1
-MAX_RETRIES = 3
-DELAY_BETWEEN_ACCOUNTS = [0, 0]
-DELAY_BETWEEN_ACTIONS = [0, 0]
+# ---< IGNORE IT >---
+
+#[PLAYWRIGHT]
+#HEADLESS = true
+#TIMEOUT = 30  # sec.
+#TIME_TO_WAIT = 10  # sec.
+
+#[MOBILE_PROXY]
+#PROXY = ""
+#CHANGE_IP_URL = ""
+
+#[IMPORT]
+#TWITTER_SEPARATOR = ":"
+#DISCORD_SEPARATOR = ":"
+#GOOGLE_SEPARATOR = ":"
+#TWITTER_FIELDS = ["auth_token", "username", "password", "totp_secret"]
+#DISCORD_FIELDS = ["auth_token"]
+#GOOGLE_FIELDS = ["email", "password", "recovery_email", "totp_secret"]

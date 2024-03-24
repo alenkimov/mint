@@ -1,4 +1,4 @@
-from twitter.utils import load_toml
+from .utils import load_toml
 
 PROJECT_INFO = load_toml('pyproject.toml')['tool']['poetry']
 PROJECT_VERSION = PROJECT_INFO['version']

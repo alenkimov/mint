@@ -166,7 +166,7 @@ class DiscordAccount(Base):
 
         return self.mint_account.mint_user_id == self.mint_user.id
 
-    async def joined_guild(self, guild_id: int, session: AsyncSession) -> bool | None:
+    async def joined_guild(self, session: AsyncSession, guild_id: int) -> bool | None:
         try:
             # Создаем асинхронный запрос на выборку
             async with session.begin():
@@ -180,9 +180,6 @@ class DiscordAccount(Base):
                 return join_status.joined
         except NoResultFound:
             return None
-
-    async def joined_mint_guild(self, session: AsyncSession) -> bool | None:
-        return await self.joined_guild(1172040134355587092, session)
 
 
 class Wallet(Base):
@@ -301,7 +298,6 @@ class MintAccount(Base):
     database_id: Mapped[Int_PK]
 
     group:       Mapped[str | None] = mapped_column(String(16), index=True)
-    name:        Mapped[str | None] = mapped_column(String(16))
     auth_token:  Mapped[str | None] = mapped_column(unique=True)
     invite_code: Mapped[str | None] = mapped_column(String(8))
 

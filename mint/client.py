@@ -27,9 +27,12 @@ DISCORD_OAUTH2_DATA = {
     "scopes": ["identify", "guilds", "guilds.members.read"],
 }
 DISCORD_MINTCHAIN_GUILD_INVITE_CODE = "mint-blockchain"
+DISCORD_MINTCHAIN_GUILD_ID = 1172040134355587092
 DISCORD_MINTCHAIN_GUILD_VERIFY_CHANNEL_ID = 1181968185206001726
 DISCORD_MINTCHAIN_GUILD_VERIFY_MESSAGE_ID = 1181968186879516744
 DISCORD_MINTCHAIN_GUILD_VERIFY_REACTION = '✅'
+
+TASK_IDS_TO_IGNORE = {6, }
 
 
 class Client:
@@ -102,18 +105,34 @@ class Client:
         """
         :return: Interacted (Bound or not)
         """
+        if not self.account.discord_account:
+            return False
+
         async with AsyncSessionmaker() as session:
             session.add(self.account)
             await session.refresh(self.account.discord_account, attribute_names=["mint_user"])
 
-        if self.account.discord_account.mint_user:
-            # Проверка на привязку
-            if self.account.mint_user_id == self.account.discord_account.mint_user.id:
-                logger.info(f"{self.account} {self.account.discord_account}"
-                            f" Discord account already bound")
-                return False
-            else:
+            if self.account.discord_account.mint_user:
+                # Проверка на привязку
+                if self.account.mint_user_id == self.account.discord_account.mint_user.id:
+                    logger.info(f"{self.account} {self.account.discord_account}"
+                                f" Discord account already bound")
+                    return False
+                else:
+                    pass
+
+            joined_mint_guild = await self.account.discord_account.joined_guild(session, DISCORD_MINTCHAIN_GUILD_ID)
+
+            # Если возвращает None, значит войти в гильдию еще не пробовали
+            if joined_mint_guild is None:
                 pass
+
+            # Если возвращает False, значит попытка войти в гильдию увенчалась неудачей,
+            # что, скорее всего, означает то, что войти не получится вовсе и не стоит больше пытаться
+            if joined_mint_guild is False:
+                logger.warning(f"{self.account} {self.account.discord_account}"
+                               f" Joining Mint Discord guild failed before")
+                return False
 
         auth_code = await join_guild_and_make_oauth2(
             self.account.discord_account,
@@ -187,23 +206,40 @@ class Client:
         tasks = await self.http.request_task_list()
         unclaimed_tasks: list[Task] = [task for task in tasks if not task.claimed]
         for task in unclaimed_tasks:
-            # if task.id == 2:  # Discord bind task
-                # if self.account.discord_account.bound:
-                #     try:
-                #         claimed_me = await self.http.submit_discord_task()
-                #         interacted = True
-                #         logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
-                #     except HTTPException as exc:
-                #         if exc.message == "You haven't joined the Mint's discord":
-                #             logger.warning(f"{self.account} {self.account.discord_account}"
-                #                            f" You haven't joined the Mint's discord")
-                #         else:
-                #             raise
 
             if task.spec.startswith("twitter"):
                 claimed_me = await self.http.sumbit_task(task.id)
                 interacted = True
                 logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
+
+            elif task.id == 2:  # Discord bind task
+
+                # Выполнять, если:
+                #   - Есть дискорд
+                #   - Дискорд привязан
+                #   - Дискорд на сервере
+
+                if not self.account.discord_account:
+                    continue
+
+                async with AsyncSessionmaker() as session:
+                    session.add(self.account)
+                    await session.refresh(self.account.discord_account, attribute_names=["mint_user"])
+
+                if self.account.discord_account.mint_user:
+                    # Проверка на привязку
+                    if self.account.mint_user_id == self.account.discord_account.mint_user.id:
+                        logger.info(f"{self.account} {self.account.discord_account}"
+                                    f" Discord account already bound")
+                        return False
+                    else:
+                        pass
+
+                claimed_me = await self.http.submit_discord_task()
+                interacted = True
+                logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
+            elif task.id in TASK_IDS_TO_IGNORE:
+                pass
             else:
                 logger.warning(f"{self.account} Can't complete task '{task.name}'")
 
@@ -244,10 +280,6 @@ class Client:
         :return: Interacted (Verified or not)
         """
         if self.account.user.status == "verified":
-            return False
-
-        if self.account.wallet.verification_failed:
-            logger.warning(f"{self.account} {self.account.wallet} Wallet failed verification before")
             return False
 
         try:

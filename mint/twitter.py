@@ -35,7 +35,7 @@ class TwitterClient(twitter.Client):
         super().__init__(
             account,
             proxy=proxy,
-            max_unlock_attempts=CONFIG.TWITTER.UNLOCK_ATTEMPTS,
+            max_unlock_attempts=CONFIG.TWITTER.MAX_UNLOCK_ATTEMPTS,
             capsolver_api_key=CONFIG.CAPTCHA.CAPSOLVER_API_KEY,
         )
 

@@ -6,12 +6,9 @@ from common.config import (
     TwitterConfig,
     CaptchaConfig,
     ConcurrencyConfig,
+    RequestsConfig,
 )
 from .paths import CONFIG_TOML
-
-
-class MintConfig(BaseModel):
-    DEFAULT_INVITE_CODE: str
 
 
 class Config(BaseModel):
@@ -19,7 +16,7 @@ class Config(BaseModel):
     CONCURRENCY: ConcurrencyConfig
     TWITTER: TwitterConfig
     CAPTCHA: CaptchaConfig
-    MINT: MintConfig
+    REQUESTS: RequestsConfig
 
 
 CONFIG = Config(**load_toml(CONFIG_TOML))

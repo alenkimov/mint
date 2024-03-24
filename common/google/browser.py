@@ -212,7 +212,13 @@ class GooglePlaywrightBrowserContext:
 
                 await recovery_email_button.click()
                 await page.wait_for_load_state("load")
-                await page.locator(self._RECOVERY_EMAIL_FIELD_XPATH).type(self.account.recovery_email)
+
+                recovery_input_field = page.locator(self._RECOVERY_EMAIL_FIELD_XPATH)
+                # Иногда Recovery Email не печатается с первого раза по неизвестной причине
+                while True:
+                    await recovery_input_field.type(self.account.recovery_email)
+                    recovery_input_field_value = await recovery_input_field.input_value()
+                    if recovery_input_field_value: break
                 await page.locator(self._RIGHT_BUTTON_XPATH).click()
 
             await page.wait_for_load_state("load")

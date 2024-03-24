@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 92908fadc115
+Revision ID: 89abc7e771d9
 Revises: 
-Create Date: 2024-03-23 21:39:54.383068
+Create Date: 2024-03-25 00:59:14.625537
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "92908fadc115"
+revision: str = "89abc7e771d9"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -185,7 +185,6 @@ def upgrade() -> None:
         "mint_account",
         sa.Column("database_id", sa.Integer(), nullable=False),
         sa.Column("group", sa.String(length=16), nullable=True),
-        sa.Column("name", sa.String(length=16), nullable=True),
         sa.Column("auth_token", sa.String(), nullable=True),
         sa.Column("invite_code", sa.String(length=8), nullable=True),
         sa.Column("proxy_database_id", sa.Integer(), nullable=True),
