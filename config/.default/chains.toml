@@ -58,3 +58,9 @@ name = "Ethereum Sepolia Testnet"
 rpc = "https://1rpc.io/sepolia"
 explorer_url = "https://sepolia.etherscan.io"
 symbol = "tETH"
+
+[testnet.1686]
+name = "Mint Testnet"
+rpc = "https://testnet-rpc.mintchain.io"
+explorer_url = "https://testnet-explorer.mintchain.io"
+symbol = "tETH"
