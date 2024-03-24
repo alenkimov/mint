@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 from loguru import logger
@@ -8,16 +7,30 @@ from better_proxy import Proxy as BetterProxy
 
 import discord
 
-from .database import DiscordAccount
+from .errors import BadDiscordAccount
+from .database import AsyncSessionmaker, DiscordAccount, DiscordGuildJoinStatus, update_or_create
 
 
 class DiscordClient(discord.Client):
-    # _VERIFY_CHANNEL_ID = 948843667194519607
-    # _VERIFY_MESSAGE_ID = 969127174319788092
-    # _VERIFY_REACTION = '✅'
-
-    def __init__(self, account: DiscordAccount, proxy: str | BetterProxy, **options):
+    def __init__(
+            self,
+            account: DiscordAccount,
+            proxy: str | BetterProxy,
+            *,
+            oauth2_data: dict,
+            invite_code_or_url: str,
+            verify_reaction: str = None,
+            verify_message_id: int = None,
+            verify_channel_id: int = None,
+            **options,
+    ):
         self.db_account = account
+        self.auth_code = None
+        self.oauth2_data = oauth2_data
+        self.invite_code_or_url = invite_code_or_url
+        self.verify_reaction = verify_reaction
+        self.verify_message_id = verify_message_id
+        self.verify_channel_id = verify_channel_id
         options["proxy"] = str(proxy) if proxy else None
         super().__init__(**options)
 
@@ -25,100 +38,115 @@ class DiscordClient(discord.Client):
         await self.close()
         raise
 
-    async def start(self, *, reconnect: bool = True):
-        max_retries = 3  # Set the maximum number of retries
-        for attempt in range(max_retries):
-            try:
-                await super().start(
-                    self.gomble.account.discord.auth_token, reconnect=reconnect
-                )
-                break  # If successful, exit the loop
-            except (ValueError, RuntimeError, discord.errors.ConnectionClosed) as e:
-                if (
-                    "is not a valid HTTPStatus" in str(e)
-                    or isinstance(e, RuntimeError)
-                    or isinstance(e, discord.errors.ConnectionClosed)
-                ):
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(1)  # Wait before retrying
-                        continue  # Retry the request
-                    else:
-                        raise  # Re-raise the exception after all retries have failed
-                else:
-                    raise  # Re-raise the exception if it's not related to HTTPStatus
-            except discord.errors.LoginFailure:
-                self.gomble.account.discord.status = "BAD_TOKEN"
-                break
+    # async def start(self, *, reconnect: bool = True):
+    #     max_retries = 3  # Set the maximum number of retries
+    #     for attempt in range(max_retries):
+    #         try:
+    #             await super().start(
+    #                 self.db_account.auth_token, reconnect=reconnect
+    #             )
+    #             break  # If successful, exit the loop
+    #         except (ValueError, RuntimeError, discord.errors.ConnectionClosed) as e:
+    #             if (
+    #                 "is not a valid HTTPStatus" in str(e)
+    #                 or isinstance(e, RuntimeError)
+    #                 or isinstance(e, discord.errors.ConnectionClosed)
+    #             ):
+    #                 if attempt < max_retries - 1:
+    #                     await asyncio.sleep(1)  # Wait before retrying
+    #                     continue  # Retry the request
+    #                 else:
+    #                     raise  # Re-raise the exception after all retries have failed
+    #             else:
+    #                 raise  # Re-raise the exception if it's not related to HTTPStatus
+    #         except discord.errors.LoginFailure:
+    #             self.db_account.status = "BAD_TOKEN"
+    #             raise BadDiscordAccount(self.db_account, f"Bad Discord token")
 
     async def on_ready(self):
-        self.gomble.account.discord.status = "GOOD"
-        self.gomble.account.discord.id = self.user.id
-        self.gomble.account.discord.email = self.user.email
-        self.gomble.account.discord.name = self.user.display_name
-        self.gomble.account.discord.username = str(self.user)
-        self.gomble.account.discord.phone = self.user.phone
-        self.gomble.account.discord.required_action = (
-            self.required_action and self.required_action.value
-        )
-        await self.gomble.db_session.commit()
+        async with AsyncSessionmaker() as session:
+            session.add(self.db_account)
 
-        if self.gomble.account.discord.required_action:
-            logger.warning(
-                f"{self.gomble.account.discord} {self.gomble.account.discord.required_action}"
+            self.db_account.status = "GOOD"
+            self.db_account.id = self.user.id
+            self.db_account.email = self.user.email
+            self.db_account.name = self.user.display_name
+            self.db_account.username = str(self.user)
+            self.db_account.phone = self.user.phone
+            if self.required_action:
+                self.db_account.required_action = self.required_action.value
+            await session.commit()
+
+            if self.db_account.required_action:
+                await self.close()
+                raise BadDiscordAccount(self.db_account, f"Required action: {self.db_account.required_action}")
+
+            if not self.db_account.phone:
+                await self.close()
+                raise BadDiscordAccount(self.db_account, f"No phone number")
+
+            invite = await self.accept_invite(self.invite_code_or_url)
+            guild_info = f"{invite.guild.name} guild ({invite.approximate_member_count} members)"
+            logger.success(f"{self.db_account} {guild_info}: Joined guild")
+
+            await update_or_create(
+                session,
+                DiscordGuildJoinStatus,
+                {
+                    "discord_account": self.db_account,
+                    "guild_id": invite.guild.id,
+                    "invite_code": invite.code,
+                    "joined": True,
+                },
+                discord_account=self.db_account,
+                guild_id=invite.guild.id,
             )
-            await self.close()
-            return
 
-        if not self.user.phone:
-            logger.warning(f"{self.gomble.account.discord} No phone number")
-            await self.close()
-            return
+            await session.commit()
 
-        invite = await self.accept_invite(self.quest.url)
-        guild_info = f"{invite.guild.name} guild ({invite.approximate_member_count} members)"
-        logger.success(f"{self.gomble.account.discord} {guild_info}: Joined guild")
+            try:
+                await invite.guild.agree_guild_rules(invite)
+                logger.success(f"{self.db_account} {guild_info}: Accepted rules")
+            except discord.errors.HTTPException as exc:
+                if exc.code == 150009:
+                    logger.info(f"{self.db_account} {guild_info}: Rules already accepted")
+                else:
+                    raise
 
-        self.gomble.account.discord.joined_gomble_guild = "JOINED"
+        if self.verify_channel_id and self.verify_message_id and self.verify_reaction:
+            channel = await invite.guild.fetch_channel(self.verify_channel_id)
+            message = await channel.fetch_message(self.verify_message_id)
+            await message.add_reaction(self.verify_reaction)
 
-        try:
-            await invite.guild.agree_guild_rules(invite)
-            logger.success(f"{self.gomble.account.discord} {guild_info}: Accepted rules")
-        except discord.errors.HTTPException as exc:
-            if exc.code == 150009:
-                logger.info(f"{self.gomble.account.discord} {guild_info}: Rules already accepted")
-            else:
-                raise
-
-        channel = await invite.guild.fetch_channel(self._VERIFY_CHANNEL_ID)
-        message = await channel.fetch_message(self._VERIFY_MESSAGE_ID)
-        await message.add_reaction(self._VERIFY_REACTION)
-
-        oauth_url = await self.gomble.quest(self.quest.id)
-        oauth2_data = dict(URL(oauth_url).query)
-        oauth2_data["scopes"] = oauth2_data.pop("scope").split(' ')
-        oauth2_data["application_id"] = oauth2_data.pop("client_id")
-
-        try:
-            oauth2_location = await self.http.authorize_oauth2(**oauth2_data)
-        except discord.errors.DiscordServerError as exc:
-            logger.error(exc)
-            await self.close()
-            return
+        # TODO Повторная попытка на discord.errors.DiscordServerError
+        oauth2_location = await self.http.authorize_oauth2(**self.oauth2_data)
 
         location_query = dict(URL(oauth2_location["location"]).query)
-
-        quest_access_token = await self.gomble.request_quest_access_token(
-            self.quest.id,
-            location_query["code"],
-            location_query["state"],
-        )
-        logger.success(f"{self.gomble.account} {self.gomble.account.discord} Discord bound")
-
-        await self.gomble.complete_quest(self.quest.id, quest_access_token)
-        logger.success(f"{self.gomble.account} {self.gomble.account.discord} Квест {self.quest.text} выполнен!")
-
-        await self.gomble.db_session.commit()
-        await self.gomble.db_session.refresh(
-            self.gomble.account, attribute_names=["discord"]
-        )
+        self.auth_code = location_query["code"]
         await self.close()
+
+
+async def join_guild_and_make_oauth2(
+            account: DiscordAccount,
+            proxy: str | BetterProxy,
+            *,
+            oauth2_data: dict,
+            invite_code_or_url: str,
+            verify_reaction: str = None,
+            verify_message_id: int = None,
+            verify_channel_id: int = None,
+    ) -> str:
+    """
+    :return: auth_code
+    """
+    client = DiscordClient(
+        account,
+        proxy,
+        oauth2_data=oauth2_data,
+        invite_code_or_url=invite_code_or_url,
+        verify_reaction=verify_reaction,
+        verify_message_id=verify_message_id,
+        verify_channel_id=verify_channel_id,
+    )
+    await client.start(account.auth_token)
+    return client.auth_code

@@ -156,15 +156,15 @@ class DiscordAccount(Base):
     @property
     def bound(self) -> bool | None:
         """
-        mint_account.mint_user уже должен быть запрошен, иначе вернет None
+        mint_account уже должен быть запрошен, иначе вернет None
         """
+        if not self.mint_user:
+            return None
+
         if not self.mint_account:
             return None
 
-        if not self.mint_account.mint_user:
-            return None
-
-        return self.mint_account.mint_user != self.mint_user
+        return self.mint_account.mint_user_id == self.mint_user.id
 
     async def joined_guild(self, guild_id: int, session: AsyncSession) -> bool | None:
         try:

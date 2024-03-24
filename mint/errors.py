@@ -1,12 +1,27 @@
-from .database import MintAccount
+from .database import MintAccount, TwitterAccount, DiscordAccount
 
 
-class MintScriptLogicException(Exception):
+class ScriptError(Exception):
+    pass
+
+
+class MintScriptError(ScriptError):
     def __init__(self, account: MintAccount, exception_message: str):
         self.account = account
+        super().__init__(f"{account} {exception_message}")
 
-        super().__init__(exception_message)
+
+class TwitterScriptError(ScriptError):
+    def __init__(self, account: TwitterAccount, exception_message: str):
+        self.account = account
+        super().__init__(f"{account} {exception_message}")
 
 
-class TooLessTwitterFollowers(MintScriptLogicException):
+class DiscordScriptError(ScriptError):
+    def __init__(self, account: DiscordAccount, exception_message: str):
+        self.account = account
+        super().__init__(f"{account} {exception_message}")
+
+
+class BadDiscordAccount(DiscordScriptError):
     pass

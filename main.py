@@ -16,9 +16,11 @@ from random import randint
 
 from better_web3 import Wallet as BetterWallet
 from better_proxy import Proxy as BetterProxy
+from twitter.errors import HTTPException as TwitterHTTPException, BadAccount as TwitterBadAccountError
 
 import questionary
 from loguru import logger
+from curl_cffi import requests
 
 from common import print_project_info, print_author_info, setup_logger
 from common.excell import get_xlsx_filepaths, get_worksheets
@@ -28,15 +30,16 @@ from mint.config import CONFIG
 from mint.excell import excell
 from mint.client import Client as MintClient
 from mint.api.errors import HTTPException as MintHTTPException
-from mint.errors import MintScriptLogicException
+from mint.errors import DiscordScriptError, TwitterScriptError
 from mint.database.crud import (
     get_accounts_by_groups,
     get_groups,
     get_or_create,
     update_or_create,
 )
-from mint.database.database import AsyncSessionmaker
 from mint.database import (
+    AsyncSessionmaker,
+    alembic_utils,
     MintAccount,
     DiscordAccount,
     TwitterAccount,
@@ -45,6 +48,7 @@ from mint.database import (
 )
 
 setup_logger(LOG_DIR, CONFIG.LOGGING.LEVEL)
+logger.enable("twitter")
 
 DATABASE_URL = f"sqlite:///{DATABASE_FILEPATH}"
 
@@ -135,10 +139,10 @@ async def select_and_import_table():
             #   - Нет (для всех)
             if (
                     (mint_account_data["twitter"]["auth_token"] or
-                    mint_account_data["twitter"]["username"] or
-                    mint_account_data["twitter"]["email"] or
-                    mint_account_data["twitter"]["password"] or
-                    mint_account_data["twitter"]["totp_secret"]) and
+                     mint_account_data["twitter"]["username"] or
+                     mint_account_data["twitter"]["email"] or
+                     mint_account_data["twitter"]["password"] or
+                     mint_account_data["twitter"]["totp_secret"]) and
                     not db_mint_account.twitter_account
             ):
                 db_mint_account.twitter_account = TwitterAccount(**mint_account_data["twitter"])
@@ -148,6 +152,25 @@ async def select_and_import_table():
 
             # Сохраняем привязанные к db_mint_account модели
             await session.commit()
+
+
+async def register_and_claim(mint_account: MintAccount) -> bool:
+    """
+    :return: Interacted or not
+    """
+    mint_client = MintClient(mint_account)
+
+    interacted = False
+
+    interacted |= await mint_client.login()
+    interacted |= await mint_client.try_to_verify_wallet()
+    interacted |= await mint_client.try_to_bind_twitter()
+    interacted |= await mint_client.try_to_accept_invite()
+    interacted |= await mint_client.complete_tasks()
+    interacted |= await mint_client.claim_energy()
+    interacted |= await mint_client.inject_all()
+
+    return interacted
 
 
 async def select_and_process_group():
@@ -171,32 +194,57 @@ async def select_and_process_group():
         # Запрос аккаунтов выбранных групп
         mint_accounts = await get_accounts_by_groups(session, selected_groups)
 
-    # Прогон аккаунтов
-    # TODO Прогон аккаунтов должен быть в scripts. Там же должен быть отлов ошибок
     for mint_account in mint_accounts:
-        mint_client = MintClient(mint_account)
-        await mint_client.login()
-        await mint_client.try_to_verify_wallet()
-        try:
-            await mint_client.try_to_bind_twitter()
-            await mint_client.try_to_accept_invite()
-        # Если исключение дошло сюда, значит повторные попытки закончились (если они предусмотрены)
-        except MintScriptLogicException as exc:
-            logger.warning(f"{mint_account} {exc}")
-            continue
-        except MintHTTPException as exc:
-            if exc.message == "Invalid User":
-                print(f"ИНВАЛИД ЮЗЕР ЕПТА")
-            else:
-                raise
+        retries = CONFIG.CONCURRENCY.MAX_RETRIES
+        while retries > 0:
+            try:
+                interacted = await register_and_claim(mint_account)
 
-        await mint_client.complete_tasks()
-        await mint_client.claim_energy()
-        await mint_client.inject_all()
+                sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
+                if interacted and sleep_time > 0:
+                    logger.info(f"{mint_account} Sleep {sleep_time} sec.")
+                    await asyncio.sleep(sleep_time)
 
-        sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
-        logger.info(f"{mint_account} Sleep {sleep_time} sec.")
-        await asyncio.sleep(sleep_time)
+                # Выход из цикла, если выполнение прошло без ошибок
+                break
+
+            except (TwitterScriptError, DiscordScriptError) as exc:
+                logger.warning(f"{mint_account} {exc}")
+                break
+
+            except (MintHTTPException, TwitterHTTPException, TwitterBadAccountError) as exc:
+                # Повторные попытки на HTTP 5XX (ошибки на стороне сервера)
+                if isinstance(exc, TwitterHTTPException):
+                    if exc.response.status_code >= 500:
+                        logger.warning(f"{mint_account} {exc}")
+                    else:
+                        logger.error(f"{mint_account} {exc}")
+                        break
+
+                if isinstance(exc, MintHTTPException):
+                    if exc.response.status_code >= 500:
+                        logger.warning(f"{mint_account} {exc}")
+                    else:
+                        logger.error(f"{mint_account} {exc}")
+                        break
+
+                logger.error(f"{mint_account} {exc}")
+                # После этих ошибок не нужно делать повторную попытку, поэтому выходим из цикла
+                break
+            except requests.errors.RequestsError as exc:
+                if exc.code in (23, 28, 35, 56, 7):
+                    logger.warning(f"{mint_account} (May be bad or slow proxy) {exc}")
+                else:
+                    raise
+
+            retries -= 1
+            if retries > 0:
+                # Пауза перед следующей попыткой
+                logger.warning(f"{mint_account}"
+                               f" Не удалось завершить выполнение."
+                               f" Повторная попытка через 60s."
+                               f" Осталось попыток: {retries}.")
+                await asyncio.sleep(60)
 
 
 MODULES = {
@@ -212,7 +260,21 @@ async def select_module(modules) -> Callable:
 
 
 async def main():
-    # TODO Проверка на наличие и версию бд
+    current_revision = await alembic_utils.get_current_revision()
+    latest_revision = alembic_utils.get_latest_revision()
+    if current_revision != latest_revision:
+        print(
+            f"Current revision is {current_revision}, but the latest revision is {latest_revision}."
+            f" An update is required."
+        )
+        should_upgrade = await questionary.confirm(
+            "Do you want to upgrade the database to the latest revision?"
+        ).ask_async()
+
+        if not should_upgrade:
+            return
+
+        await alembic_utils.upgrade()
 
     print_project_info()
     print_author_info()

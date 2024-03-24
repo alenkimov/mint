@@ -111,6 +111,19 @@ class HTTPClient(BaseHTTPClient):
         twitter_id = int(data)
         return twitter_id
 
+    async def bind_discord(self, auth_code: str):
+        url = "https://www.mintchain.io/api/discord/verify"
+        payload = {"code": auth_code}
+        await self.request("POST", url, json=payload)
+
+    async def submit_discord_task(self):
+        """
+        :return: ME amount
+        """
+        url = "https://www.mintchain.io/api/discord/check-follow"
+        response, data = await self.request("POST", url)
+        return data["amount"]
+
     async def accept_invite(self, invite_code: str) -> int:
         """
         :return: Invited ID

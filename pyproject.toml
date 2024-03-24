@@ -9,7 +9,7 @@ readme = "README.md"
 python = "^3.11"
 discord-py-self = {git = "https://github.com/alenkimov/discord.py-self", rev = "tls"}
 better-web3 = "^3.2.1"
-tweepy-self = "^1.9.0"
+tweepy-self = {version="^1.10.0b1", allow-prereleases=true}
 loguru = "^0.7"
 questionary = "^2"
 tqdm = "^4.66"

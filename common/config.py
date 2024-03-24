@@ -17,6 +17,7 @@ class ConcurrencyConfig(BaseModel):
     MAX_RETRIES: int = 3
     DELAY_BETWEEN_ACCOUNTS: tuple[int, int] = (0, 0)
     DELAY_BETWEEN_ACTIONS: tuple[int, int] = (0, 0)
+    REQUEST_TIMEOUT: int = 30
 
 
 class PlaywrightConfig(BaseModel):
@@ -37,7 +38,7 @@ class ImportConfig(BaseModel):
 class TwitterConfig(BaseModel):
     UNLOCK_ATTEMPTS: int = 5
     USE_SUSPENDED_ACCOUNTS: bool = False
-    AUTORELOGIN: bool = True
+    AUTO_RELOGIN: bool = True
 
 
 class CaptchaConfig(BaseModel):

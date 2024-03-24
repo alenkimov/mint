@@ -39,7 +39,7 @@ class TwitterClient(twitter.Client):
             capsolver_api_key=CONFIG.CAPTCHA.CAPSOLVER_API_KEY,
         )
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, *args):
         await self.close()
 
     async def close(self):
@@ -60,4 +60,4 @@ class TwitterClient(twitter.Client):
                 session, TwitterUser, twitter_user_data, id=twitter_user_data["id"])
             await session.commit()
 
-        super().close()
+        await super().close()
