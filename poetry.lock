@@ -758,7 +758,7 @@ protobuf = "*"
 
 [[package]]
 name = "discord.py-self"
-version = "2.1.0a4856+g77343d6f"
+version = "2.1.0a4857+g0355f3f1"
 description = "A Python wrapper for the Discord user API"
 optional = false
 python-versions = ">=3.8.0"
@@ -767,7 +767,7 @@ develop = false
 
 [package.dependencies]
 aiohttp = ">=3.7.4,<4"
-curl_cffi = ">=0.6.0b7,<1"
+curl_cffi = ">=0.6.2,<1"
 discord_protos = "<1.0.0"
 tzlocal = ">=4.0.0,<6"
 
