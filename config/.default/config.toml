@@ -6,7 +6,7 @@ MAX_TASKS = 1
 MAX_RETRIES = 3
 DELAY_BETWEEN_RETRIES = 5  # sec.
 #DELAY_BETWEEN_ACTIONS = [0, 0]  # [min sec., max sec.]
-DELAY_BETWEEN_ACCOUNTS = [180, 360]  # [min sec., max sec.]
+DELAY_BETWEEN_ACCOUNTS = [60, 90]  # [min sec., max sec.]
 
 [REQUESTS]
 TIMEOUT = 10  # sec.
