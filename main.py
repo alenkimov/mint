@@ -154,28 +154,6 @@ async def select_and_import_table():
             await session.commit()
 
 
-async def register_and_claim(mint_account: MintAccount) -> bool:
-    """
-    :return: Interacted or not
-    """
-    interacted = False
-
-    if mint_account.wallet.verification_failed:
-        logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
-        return interacted
-
-    mint_client = MintClient(mint_account)
-    interacted |= await mint_client.login()
-    interacted |= await mint_client.try_to_verify_wallet()
-    interacted |= await mint_client.try_to_bind_twitter()
-    interacted |= await mint_client.try_to_accept_invite()
-    interacted |= await mint_client.complete_tasks()
-    interacted |= await mint_client.claim_energy()
-    interacted |= await mint_client.inject_all()
-
-    return interacted
-
-
 async def select_and_process_group():
     async with AsyncSessionmaker() as session:
         # Запроса групп из бд
@@ -203,19 +181,27 @@ async def select_and_process_group():
     #     print(f"Аккаунты равномерно распределены по суткам. Не выключайте скрипт.")
 
     for mint_account in mint_accounts:
+
+        if mint_account.wallet.verification_failed:
+            logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
+            return
+
+        interacted = False
+
         retries = CONFIG.CONCURRENCY.MAX_RETRIES
         while retries > 0:
-            # Функция будет вызываться повторно, если не произведен выход из цикла (break)
-
             try:
-                interacted = await register_and_claim(mint_account)
+                # Функции будет вызываться повторно, если не произведен выход из цикла (break)
 
-                sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
-                if interacted and sleep_time > 0:
-                    logger.info(f"{mint_account} Sleep {sleep_time} sec.")
-                    await asyncio.sleep(sleep_time)
+                mint_client = MintClient(mint_account)
+                interacted |= await mint_client.login()
+                interacted |= await mint_client.try_to_verify_wallet()
+                interacted |= await mint_client.try_to_bind_twitter()
+                interacted |= await mint_client.try_to_accept_invite()
+                interacted |= await mint_client.complete_tasks()
+                interacted |= await mint_client.claim_energy()
+                interacted |= await mint_client.inject_all()
 
-                # Выход из цикла, если выполнение прошло без ошибок
                 break
 
             except (TwitterScriptError, DiscordScriptError) as exc:
@@ -240,11 +226,18 @@ async def select_and_process_group():
 
                 logger.error(f"{mint_account} {exc}")
                 break
+
             except requests.errors.RequestsError as exc:
                 if exc.code in (23, 28, 35, 56, 7):
                     logger.warning(f"{mint_account} (May be bad or slow proxy) {exc}")
                 else:
                     raise
+
+            finally:
+                sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
+                if interacted and sleep_time > 0:
+                    logger.info(f"{mint_account} Sleep {sleep_time} sec.")
+                    await asyncio.sleep(sleep_time)
 
             retries -= 1
             if retries > 0:
