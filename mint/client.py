@@ -214,32 +214,32 @@ class Client:
 
             elif task.id == 2:  # Discord bind task
 
-                # Выполнять, если:
-                #   - Есть дискорд
-                #   - Дискорд привязан
-                #   - Дискорд на сервере
-
                 if not self.account.discord_account:
+                    continue
+
+                if not self.account.discord_account.id:
+                    logger.warning(f"{self.account}"
+                                   f" Информация о Discord аккаунте этого Mint аккаунта не запрошена")
                     continue
 
                 async with AsyncSessionmaker() as session:
                     session.add(self.account)
                     await session.refresh(self.account.discord_account, attribute_names=["mint_user"])
 
-                if self.account.discord_account.mint_user:
-                    # Проверка на привязку
-                    if self.account.mint_user_id == self.account.discord_account.mint_user.id:
-                        logger.info(f"{self.account} {self.account.discord_account}"
-                                    f" Discord account already bound")
-                        return False
-                    else:
-                        pass
+                if not self.account.discord_account.mint_user:
+                    logger.warning(f"{self.account} {self.account.discord_account}"
+                                   f" Ни к одному из запрошенных Mint аккаунтов не привязан этот Discord аккаунт")
+                    continue
+
+                # TODO Проверка на нахождение на сервере
 
                 claimed_me = await self.http.submit_discord_task()
                 interacted = True
                 logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
+
             elif task.id in TASK_IDS_TO_IGNORE:
                 pass
+
             else:
                 logger.warning(f"{self.account} Can't complete task '{task.name}'")
 
