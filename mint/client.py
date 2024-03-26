@@ -49,7 +49,9 @@ class Client:
     def account(self, account: MintAccount):
         self._account = account
         self.http.auth_token = account.auth_token
-        self.http._session.proxy = account.proxy.better_proxy
+
+        if self.account.proxy:
+            self.http._session.proxy = account.proxy.better_proxy
 
     async def relogin(self) -> bool:
         """
@@ -136,7 +138,7 @@ class Client:
 
         auth_code = await join_guild_and_make_oauth2(
             self.account.discord_account,
-            self.account.proxy.better_proxy,
+            self.account.proxy.better_proxy if self.account.proxy else None,
             oauth2_data=DISCORD_OAUTH2_DATA,
             invite_code_or_url=DISCORD_MINTCHAIN_GUILD_INVITE_CODE,
             verify_reaction=DISCORD_MINTCHAIN_GUILD_VERIFY_REACTION,
@@ -353,8 +355,11 @@ class Client:
 
         # Проверку на срок было решено отключить, так как, если что, api mintchain просто вернет ошибку в запросе
 
-        async with TwitterClient(self.account.twitter_account,
-                                 proxy=self.account.proxy.better_proxy) as twitter_client:  # type: TwitterClient
+        proxy = None
+        if self.account.proxy:
+            proxy = self.account.proxy.better_proxy
+
+        async with TwitterClient(self.account.twitter_account, proxy=proxy) as twitter_client:  # type: TwitterClient
             await twitter_client.request_user()
 
             # TODO Эту проверку нужно сделать опциональной

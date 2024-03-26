@@ -15,7 +15,7 @@ class DiscordClient(discord.Client):
     def __init__(
             self,
             account: DiscordAccount,
-            proxy: str | BetterProxy,
+            proxy: str | BetterProxy = None,
             *,
             oauth2_data: dict,
             invite_code_or_url: str,
