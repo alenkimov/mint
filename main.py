@@ -117,10 +117,18 @@ async def select_and_import_table():
             if mint_account_data["proxy"]:
                 proxy = BetterProxy.from_str(mint_account_data["proxy"])
                 proxy_dict = proxy.model_dump()
-                db_mint_account.proxy, _ = await update_or_create(session, Proxy, proxy_dict, **proxy_dict)
-                print(f"\tProxy: {proxy.fixed_length}")
+                db_mint_account.proxy, created = await update_or_create(session, Proxy, proxy_dict, **proxy_dict)
 
-            # TODO Не стоит првязывать импортированные аккаунты-расходники (тви, дис) к определенном аккаунту
+                message = (f"\tProxy: "
+                           f"[{db_mint_account.proxy.database_id}]"
+                           f"{db_mint_account.proxy.better_proxy.fixed_length}")
+                if created:
+                    message += " (NEW!)"
+                else:
+                    pass
+                print(message)
+
+            # TODO Не стоит привязывать импортированные аккаунты-расходники (тви, дис) к определенном аккаунту
             #   Делать это стоит уже после того, как точно привязал их.
             #   Тогда придется изменить базу данных и сделать ее похоже на Таби.
             #   То есть из MintAccount стоит убрать twitter_database_id и discord_database_id

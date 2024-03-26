@@ -219,7 +219,7 @@ class Proxy(Base):
     password: Mapped[str] = mapped_column(String(128))
     protocol: Mapped[str] = mapped_column(String(10))
 
-    mint_account: Mapped["MintAccount"] = relationship(back_populates="proxy")
+    mint_accounts: Mapped[list["MintAccount"]] = relationship(back_populates="proxy")
     # fmt: on
 
     @cached_property
@@ -307,7 +307,7 @@ class MintAccount(Base):
     discord_database_id: Mapped[int | None] = mapped_column(ForeignKey("discord_account.database_id"))
     wallet_address:      Mapped[str]        = mapped_column(ForeignKey("wallet.address"))
 
-    proxy:           Mapped[Proxy          | None] = relationship(back_populates="mint_account")
+    proxy:           Mapped[Proxy          | None] = relationship(back_populates="mint_accounts")
     user:            Mapped[MintUser       | None] = relationship(back_populates="mint_account")
     twitter_account: Mapped[TwitterAccount | None] = relationship(back_populates="mint_account")
     discord_account: Mapped[DiscordAccount | None] = relationship(back_populates="mint_account")
