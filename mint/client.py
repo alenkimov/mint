@@ -308,31 +308,34 @@ class Client:
 
     @relogin_on_error
     async def try_to_bind_twitter(self) -> bool:
-        # Подразумевается, что MintAccount.twitter_account уже запрошен из бд
-        # Если пользователь не передал Twitter аккаунт, значит игнорируем
-        if not self.account.twitter_account:
-            logger.warning(f"{self.account}"
-                           f" No Twitter account")
-            return False
 
-        # Подразумевается, что MintAccount.user уже запрошен из бд
-        mint_user: MintUser = self.account.user
-
-        # Запрашиваем MintUser.twitter_user
+        # Запрашиваем у БД все требуемые для работы данные
         async with AsyncSessionmaker() as session:
             session.add(self.account)
-            await session.refresh(mint_user, attribute_names=["twitter_user"])
+            await session.refresh(self.account, attribute_names=["twitter_account"])
             await session.refresh(self.account.twitter_account, attribute_names=["user"])
+            await session.refresh(self.account, attribute_names=["user"])
+            await session.refresh(self.account.user, attribute_names=["twitter_user"])
 
-        # Если у MintUser уже есть привязанный пользователь Twitter
-        # TODO возможно, потребуется проверка на mint_account.twitter_account.user.
-        #   Если его нету, то нужно запросить через апи
+        if not self.account.twitter_account:
+            logger.warning(f"{self.account} No Twitter account")
+            return False
 
-        # TODO Использовать параметр twitter_account.bound
-        if mint_user.twitter_user and self.account.twitter_account.user:
+        # TODO Вынести эту конструкцию как @property MintAccount.better_proxy
+        proxy = None
+        if self.account.proxy:
+            proxy = self.account.proxy.better_proxy
 
+        # Проверяем, запрошена ли информация о пользователе Twitter
+        if not self.account.twitter_account.user:
+            async with TwitterClient(self.account.twitter_account, proxy=proxy):
+                # Здесь неявно запрашивается информация о пользователе
+                pass
+
+        # TODO Использовать атрибут twitter_account.bound
+        if self.account.user.twitter_id and self.account.twitter_account.user:
             # Если это тот же пользователь, то все ок
-            if mint_user.twitter_user == self.account.twitter_account.user:
+            if self.account.user.twitter_id == self.account.twitter_account.user.id:
                 logger.info(f"{self.account} {self.account.twitter_account.user}"
                             f" Twitter account already bound")
                 return False
@@ -355,48 +358,36 @@ class Client:
 
         # Проверку на срок было решено отключить, так как, если что, api mintchain просто вернет ошибку в запросе
 
-        proxy = None
-        if self.account.proxy:
-            proxy = self.account.proxy.better_proxy
-
         async with TwitterClient(self.account.twitter_account, proxy=proxy) as twitter_client:  # type: TwitterClient
-            await twitter_client.request_user()
 
-            # TODO Эту проверку нужно сделать опциональной
             if twitter_client.account.followers_count < 10:
                 raise TwitterScriptError(
                     self.account.twitter_account,
                     f"Necessary condition: Twitter followers >= 10."
                     f" Yours: {twitter_client.account.followers_count}"
                 )
-                # logger.info(
-                #     f"{self.account}"
-                #     f"Necessary condition: Twitter followers >= 10."
-                #     f" Yours: {twitter_client.account.followers_count}"
-                # )
-                # return False
 
             # Проверку на срок было решено не делать, так как, если что, api mintchain просто вернет ошибку в запросе
 
             auth_code = await twitter_client.oauth2(**TWITTER_OAUTH2_PARAMS)
 
-            try:
-                self.account.user.twitter_id = await self.http.bind_twitter(self.account.wallet.address, auth_code)
-                logger.success(f"{self.account} Twitter bound")
-            except HTTPException as exc:
-                if exc.message == "Necessary condition: followers >= 10":
-                    raise TwitterScriptError(
-                        self.account.twitter_account,
-                        f"Necessary condition: Twitter followers >= 10."
-                        f" Yours: {twitter_client.account.followers_count}"
-                    )
-                else:
-                    raise
-                # TODO Делать проверка на ошибку bound_to_another_mint_user
+        try:
+            self.account.user.twitter_id = await self.http.bind_twitter(self.account.wallet.address, auth_code)
+            logger.success(f"{self.account} Twitter bound")
+        except HTTPException as exc:
+            if exc.message == "Necessary condition: followers >= 10":
+                raise TwitterScriptError(
+                    self.account.twitter_account,
+                    f"Necessary condition: Twitter followers >= 10."
+                    f" Yours: {twitter_client.account.followers_count}"
+                )
+            else:
+                raise
+            # TODO Делать проверка на ошибку bound_to_another_mint_user
 
-            # Сохраняем информацию об аккаунте в БД
-            async with AsyncSessionmaker() as session:
-                session.add(self.account)
-                await session.commit()
+        # Сохраняем информацию об аккаунте в БД
+        async with AsyncSessionmaker() as session:
+            session.add(self.account)
+            await session.commit()
 
-            return True
+        return True
