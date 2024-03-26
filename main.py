@@ -192,7 +192,7 @@ async def select_and_process_group():
 
         if mint_account.wallet.verification_failed:
             logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
-            return
+            continue
 
         interacted = False
 
