@@ -2,6 +2,7 @@ from functools import wraps
 from random import randint
 
 from loguru import logger
+from better_web3.utils import sign_message
 
 from .database import AsyncSessionmaker, MintAccount, MintUser, update_or_create
 from .api.http import HTTPClient
@@ -58,20 +59,24 @@ class Client:
         :return: Interacted (Logged in or not)
         """
         nonce = randint(1_000_000, 9_999_999)
-        better_wallet = self.account.wallet.better_wallet
         message = (f"You are participating in the Mint Forest event: "
-                   f"\n {better_wallet.address}"
+                   f"\n {self.account.wallet.address}"
                    f"\n\nNonce: {nonce}")
-        signature = better_wallet.sign_message(message)
-        user = await self.http.login(better_wallet.address, message, signature)
+        signature = sign_message(message, self.account.wallet.eth_account)
+        # Нужно передавать именно ChecksumAddress
+        user = await self.http.login(self.account.wallet.eth_account.address, message, signature)
         logger.success(f"{self.account} Logged in")
 
         # Сохраняем информацию об аккаунте в БД
         async with AsyncSessionmaker() as session:
             session.add(self.account)
             self.account.auth_token = self.http.auth_token
-            self.account.user, _ = await update_or_create(session, MintUser, user.model_dump(exclude={"signs"}),
-                                                          id=user.id)
+            self.account.user, _ = await update_or_create(
+                session,
+                MintUser,
+                user.model_dump(exclude={"signs"}),
+                id=user.id,
+            )
             await session.commit()
 
         return True
@@ -94,7 +99,7 @@ class Client:
             try:
                 return await method(self, *args, **kwargs)
             except HTTPException as exc:
-                if exc.message == "Authentication failed":
+                if not exc.message == "Authentication failed":
                     raise
 
                 await self.relogin()
@@ -360,12 +365,12 @@ class Client:
 
         async with TwitterClient(self.account.twitter_account, proxy=proxy) as twitter_client:  # type: TwitterClient
 
-            if twitter_client.account.followers_count < 10:
-                raise TwitterScriptError(
-                    self.account.twitter_account,
-                    f"Necessary condition: Twitter followers >= 10."
-                    f" Yours: {twitter_client.account.followers_count}"
-                )
+            # if twitter_client.account.followers_count < 10:
+            #     raise TwitterScriptError(
+            #         self.account.twitter_account,
+            #         f"Necessary condition: Twitter followers >= 10."
+            #         f" Yours: {twitter_client.account.followers_count}"
+            #     )
 
             # Проверку на срок было решено не делать, так как, если что, api mintchain просто вернет ошибку в запросе
 

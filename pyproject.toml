@@ -1,14 +1,14 @@
 [tool.poetry]
 name = "mint"
-version = "0.2.2"
+version = "0.3.0.b1"
 description = "Mint blockchain script"
 authors = ["Alen <alen.kimov@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-discord-py-self = {git = "https://github.com/alenkimov/discord.py-self", rev = "tls"}
-better-web3 = "^3.2.1"
+discord-py-self = {git="https://github.com/alenkimov/discord.py-self", rev="tls"}
+better-web3 = {git="https://github.com/alenkimov/better_web3"}
 tweepy-self = {version="^1.10.0b1", allow-prereleases=true}
 loguru = "^0.7"
 questionary = "^2"

@@ -3,7 +3,7 @@ from datetime import datetime
 
 from functools import cached_property
 
-from better_web3 import Wallet as BetterWallet
+from eth_account.account import Account, LocalAccount
 from better_proxy import Proxy as BetterProxy
 from twitter.utils import hidden_value
 import twitter
@@ -197,14 +197,14 @@ class Wallet(Base):
     mint_account: Mapped["MintAccount"]      = relationship(back_populates="wallet")
 
     @cached_property
-    def better_wallet(self) -> BetterWallet:
-        return BetterWallet.from_key(self.private_key)
+    def eth_account(self) -> LocalAccount:
+        return Account.from_key(self.private_key)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(address={self.address})"
 
     def __str__(self):
-        return str(self.better_wallet)
+        return str(self.eth_account)
 
 
 class Proxy(Base):
