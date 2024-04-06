@@ -14,7 +14,7 @@ import asyncio
 from typing import Callable
 from random import randint
 
-from eth_account import Account as Wallet
+from eth_account import Account
 from eth_account.account import LocalAccount
 from better_proxy import Proxy as BetterProxy
 from twitter.errors import HTTPException as TwitterHTTPException, BadAccount as TwitterBadAccountError
@@ -88,7 +88,7 @@ async def select_and_import_table():
             invite_code = mint_account_data["mint"]["invite_code"]
             print(f"Group: '{group}'. Invite code: {invite_code}")
 
-            wallet: LocalAccount = Wallet.from_key(mint_account_data["wallet"]["private_key"])
+            wallet: LocalAccount = Account.from_key(mint_account_data["wallet"]["private_key"])
             wallet_defaults = {
                 "private_key": wallet.key.hex().lower(),
                 "address": wallet.address.lower(),
