@@ -189,75 +189,83 @@ async def select_and_process_group():
     # if run_forever:
     #     print(f"Аккаунты равномерно распределены по суткам. Не выключайте скрипт.")
 
-    for mint_account in mint_accounts:
+    try:
+        for mint_account in mint_accounts:
 
-        if mint_account.wallet.verification_failed:
-            logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
-            continue
+            if mint_account.wallet.verification_failed:
+                logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
+                continue
 
-        interacted = False
+            interacted = False
 
-        retries = CONFIG.CONCURRENCY.MAX_RETRIES
-        while retries > 0:
-            try:
-                # Функции будет вызываться повторно, если не произведен выход из цикла (break)
+            retries = CONFIG.CONCURRENCY.MAX_RETRIES
+            while retries > 0:
+                try:
+                    # Функции будет вызываться повторно, если не произведен выход из цикла (break)
 
-                mint_client = MintClient(mint_account)
-                interacted |= await mint_client.login()
-                interacted |= await mint_client.try_to_verify_wallet()
-                interacted |= await mint_client.try_to_bind_twitter()
-                interacted |= await mint_client.try_to_accept_invite()
-                interacted |= await mint_client.complete_tasks()
-                interacted |= await mint_client.claim_energy()
-                interacted |= await mint_client.inject_all()
+                    mint_client = MintClient(mint_account)
+                    interacted |= await mint_client.login()
+                    interacted |= await mint_client.try_to_verify_wallet()
+                    interacted |= await mint_client.try_to_bind_twitter()
+                    interacted |= await mint_client.try_to_accept_invite()
+                    interacted |= await mint_client.complete_tasks()
+                    interacted |= await mint_client.claim_energy()
+                    interacted |= await mint_client.inject_all()
 
-                break
+                    break
 
-            except (TwitterScriptError, DiscordScriptError) as exc:
-                logger.warning(f"{mint_account} {exc}")
-                break
+                except (TwitterScriptError, DiscordScriptError) as exc:
+                    logger.warning(f"{mint_account} {exc}")
+                    break
 
-            except (MintHTTPException, TwitterHTTPException, TwitterBadAccountError) as exc:
-                # Повторные попытки на HTTP 5XX (ошибки на стороне сервера)
-                if isinstance(exc, TwitterHTTPException):
-                    if exc.response.status_code >= 500:
-                        logger.warning(f"{mint_account} {exc}")
+                except (MintHTTPException, TwitterHTTPException, TwitterBadAccountError) as exc:
+                    # Повторные попытки на HTTP 5XX (ошибки на стороне сервера)
+                    if isinstance(exc, TwitterHTTPException):
+                        if exc.response.status_code >= 500:
+                            logger.warning(f"{mint_account} {exc}")
+                        else:
+                            logger.error(f"{mint_account} {exc}")
+                            break
+
+                    if isinstance(exc, MintHTTPException):
+                        if exc.response.status_code >= 500:
+                            logger.warning(f"{mint_account} {exc}")
+                        if exc.message == "System Maintenance":
+                            raise
+                        else:
+                            logger.error(f"{mint_account} {exc}")
+                            break
+
+                    logger.error(f"{mint_account} {exc}")
+                    break
+
+                except requests.errors.RequestsError as exc:
+                    if exc.code in (23, 28, 35, 56, 7):
+                        logger.warning(f"{mint_account} (May be bad or slow proxy) {exc}")
                     else:
-                        logger.error(f"{mint_account} {exc}")
-                        break
+                        raise
 
-                if isinstance(exc, MintHTTPException):
-                    if exc.response.status_code >= 500:
-                        logger.warning(f"{mint_account} {exc}")
-                    else:
-                        logger.error(f"{mint_account} {exc}")
-                        break
+                finally:
+                    sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
+                    if interacted and sleep_time > 0:
+                        logger.info(f"{mint_account} Sleep {sleep_time} sec.")
+                        await asyncio.sleep(sleep_time)
 
-                logger.error(f"{mint_account} {exc}")
-                break
-
-            except requests.errors.RequestsError as exc:
-                if exc.code in (23, 28, 35, 56, 7):
-                    logger.warning(f"{mint_account} (May be bad or slow proxy) {exc}")
-                else:
-                    raise
-
-            finally:
-                sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
-                if interacted and sleep_time > 0:
-                    logger.info(f"{mint_account} Sleep {sleep_time} sec.")
+                retries -= 1
+                if retries > 0:
+                    # Пауза перед следующей попыткой
+                    sleep_time = CONFIG.CONCURRENCY.DELAY_BETWEEN_RETRIES
+                    logger.warning(f"{mint_account}"
+                                   f" Не удалось завершить выполнение."
+                                   f" Повторная попытка через {sleep_time}s."
+                                   f" Осталось попыток: {retries}.")
                     await asyncio.sleep(sleep_time)
-
-            retries -= 1
-            if retries > 0:
-                # Пауза перед следующей попыткой
-                sleep_time = CONFIG.CONCURRENCY.DELAY_BETWEEN_RETRIES
-                logger.warning(f"{mint_account}"
-                               f" Не удалось завершить выполнение."
-                               f" Повторная попытка через {sleep_time}s."
-                               f" Осталось попыток: {retries}.")
-                await asyncio.sleep(sleep_time)
-
+    except MintHTTPException as exc:
+        if exc.message == "System Maintenance":
+            logger.warning(f"На сайте mintchain происходит обновление. Попробуйте запустить скрипт позже.")
+            return
+        else:
+            raise exc
 
 MODULES = {
     '❌  Exit': exit,
