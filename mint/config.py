@@ -8,8 +8,14 @@ from common.config import (
     CaptchaConfig,
     ConcurrencyConfig,
     RequestsConfig,
+    TransactionConfig,
 )
 from .paths import CONFIG_TOML
+
+
+class BridgeConfig(BaseModel):
+    SEPOLIA_ETH_BRIDGE_AMOUNT_RANGE: tuple[float, float] = (0.001, 0.0011)
+    MINTCHAIN_ETH_BRIDGE_AMOUNT_RANGE: tuple[float, float] = (0.0001, 0.0005)
 
 
 class Config(BaseModel):
@@ -18,6 +24,8 @@ class Config(BaseModel):
     TWITTER: TwitterConfig
     CAPTCHA: CaptchaConfig
     REQUESTS: RequestsConfig
+    TRANSACTION: TransactionConfig
+    BRIDGE: BridgeConfig
 
 
 CONFIG = Config(**load_toml(CONFIG_TOML))

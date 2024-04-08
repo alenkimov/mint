@@ -30,7 +30,7 @@ class CaptchaConfig(BaseModel):
 
 
 class TransactionConfig(BaseModel):
-    WAIT_FOR_TX_RECEIPT: bool = False
+    TIMEOUT: float = 0.0  # Сколько секунд ждать выполнения транзакции (0 - не ждать)
 
 
 class PlaywrightConfig(BaseModel):

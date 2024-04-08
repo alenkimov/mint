@@ -1,8 +1,11 @@
+import asyncio
 from functools import wraps
-from random import randint
+import random
 
 from loguru import logger
 from better_web3.utils import sign_message
+from eth_utils import to_wei
+from eth_account.account import LocalAccount
 
 from .database import AsyncSessionmaker, MintAccount, MintUser, update_or_create
 from .api.http import HTTPClient
@@ -11,6 +14,10 @@ from .api.models import Task
 from .twitter import TwitterClient
 from .discord import join_guild_and_make_oauth2
 from .errors import TwitterScriptError
+from .onchain.scripts import request_balances, wait_fot_tx_receipt, tx_receipt_info, tx_hash_info
+from .onchain.chains import sepolia, mintchain
+from .onchain.contracts import eth_to_mintchain_bridge, mintchain_to_eth_bridge
+from .config import CONFIG
 
 TWITTER_OAUTH2_PARAMS = {
     'state': 'mintchain',
@@ -58,7 +65,7 @@ class Client:
         """
         :return: Interacted (Logged in or not)
         """
-        nonce = randint(1_000_000, 9_999_999)
+        nonce = random.randint(1_000_000, 9_999_999)
         message = (f"You are participating in the Mint Forest event: "
                    f"\n {self.account.wallet.address}"
                    f"\n\nNonce: {nonce}")
@@ -219,8 +226,44 @@ class Client:
                 interacted = True
                 logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
 
-            elif task.id == 2:  # Discord bind task
+            elif task.id == 5:  # Testnet Bridge task
+                sepolia_balance, mintchain_balance_wei = await request_balances(self.account)
+                wallet: LocalAccount = self.account.wallet.eth_account
 
+                if not sepolia_balance:
+                    logger.warning(f"{self.account} [{wallet.address}]"
+                                   f" No {sepolia.name} ${sepolia.native_currency.symbol} balance.")
+                    continue
+
+                try:
+                    eth_to_mintchain_bridge_amount = to_wei(random.uniform(*CONFIG.BRIDGE.SEPOLIA_ETH_BRIDGE_AMOUNT_RANGE), 'ether')
+                    tx_hash = await eth_to_mintchain_bridge.bridge(wallet, eth_to_mintchain_bridge_amount)
+                    await wait_fot_tx_receipt(sepolia, self.account, tx_hash, value=eth_to_mintchain_bridge_amount)
+
+                    while True:
+                        if mintchain_balance_wei:
+                            mintchain_to_eth_bridge_amount = to_wei(random.uniform(*CONFIG.BRIDGE.MINTCHAIN_ETH_BRIDGE_AMOUNT_RANGE), 'ether')
+                            tx_hash = await mintchain_to_eth_bridge.bridge(wallet, mintchain_to_eth_bridge_amount)
+                            await wait_fot_tx_receipt(mintchain, self.account, tx_hash, value=eth_to_mintchain_bridge_amount)
+                            break
+                        else:
+                            sleep_time = 30  # sec.
+                            logger.info(
+                                f"{self.account} [{wallet.address}]"
+                                f" No {mintchain.name} ${mintchain.native_currency.symbol} balance."
+                                f" Sleeping {sleep_time} sec...")
+                            await asyncio.sleep(sleep_time)
+                            sepolia_balance_wei, mintchain_balance_wei = await request_balances(self.account)
+
+                except ValueError as exc:
+                    logger.error(f"{self.account} [{wallet.address}] {exc}")
+                    continue
+
+                claimed_me = await self.http.sumbit_task(task.id)
+                interacted = True
+                logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
+
+            elif task.id == 2:  # Discord bind task
                 if not self.account.discord_account:
                     continue
 
@@ -251,8 +294,6 @@ class Client:
                 logger.warning(f"{self.account} Can't complete task '{task.name}'")
 
         return interacted
-
-        # TODO Bridge task
 
     @relogin_on_error
     async def request_self(self):
@@ -300,7 +341,7 @@ class Client:
                     await session.commit()
                 raise
 
-            elif exc.message == "Wallet was registed, please login again":
+            elif exc.message == "Wallet was registered, please login again":
                 logger.info(f"{self.account} {self.account.wallet} Wallet already verified.")
                 interacted = await self.relogin()
                 await self.request_self()

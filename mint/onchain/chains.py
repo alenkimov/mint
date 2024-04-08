@@ -2,7 +2,7 @@ from better_web3 import Chain, request_chains_data, chain_from_caip_2, CAIP2Chai
 
 from common.utils import load_toml
 
-from .paths import CHAINS_TOML
+from ..paths import CHAINS_TOML
 
 LOCAL_CHAINS_CONFIG = load_toml(CHAINS_TOML)
 CHAINS_CAIP2_DATA = request_chains_data()
