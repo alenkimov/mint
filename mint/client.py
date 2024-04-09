@@ -15,9 +15,9 @@ from .api.models import Task
 from .twitter import TwitterClient
 from .discord import join_guild_and_make_oauth2
 from .errors import TwitterScriptError
-from .onchain.scripts import request_balances, wait_fot_tx_receipt, tx_receipt_info, tx_hash_info
+from .onchain.scripts import request_balances, wait_fot_tx_receipt
 from .onchain.chains import sepolia, mintchain
-from .onchain.contracts import eth_to_mintchain_bridge, mintchain_to_eth_bridge
+from .onchain.contracts import eth_to_mintchain_bridge
 from .config import CONFIG
 
 TWITTER_OAUTH2_PARAMS = {
@@ -149,17 +149,39 @@ class Client:
                                f" Joining Mint Discord guild failed before")
                 return False
 
-        auth_code = await join_guild_and_make_oauth2(
-            self.account.discord_account,
-            self.account.proxy.better_proxy if self.account.proxy else None,
-            oauth2_data=DISCORD_OAUTH2_DATA,
-            invite_code_or_url=DISCORD_MINTCHAIN_GUILD_INVITE_CODE,
-            verify_reaction=DISCORD_MINTCHAIN_GUILD_VERIFY_REACTION,
-            verify_message_id=DISCORD_MINTCHAIN_GUILD_VERIFY_MESSAGE_ID,
-            verify_channel_id=DISCORD_MINTCHAIN_GUILD_VERIFY_CHANNEL_ID,
-        )
-        await self.http.bind_discord(auth_code)
+        if self.account.discord_account.required_action:
+            logger.warning(f"{self.account.discord_account}"
+                           f" Required action: {self.account.discord_account.required_action}")
+            return False
+
+        if self.account.discord_account.id and not self.account.discord_account.phone:
+            logger.warning(f"{self.account.discord_account}"
+                           f" No phone number")
+            return False
+
+        try:
+            auth_code = await join_guild_and_make_oauth2(
+                self.account.discord_account,
+                self.account.proxy.better_proxy if self.account.proxy else None,
+                oauth2_data=DISCORD_OAUTH2_DATA,
+                invite_code_or_url=DISCORD_MINTCHAIN_GUILD_INVITE_CODE,
+                verify_reaction=DISCORD_MINTCHAIN_GUILD_VERIFY_REACTION,
+                verify_message_id=DISCORD_MINTCHAIN_GUILD_VERIFY_MESSAGE_ID,
+                verify_channel_id=DISCORD_MINTCHAIN_GUILD_VERIFY_CHANNEL_ID,
+            )
+        except ValueError as exc:
+            logger.warning(f"{self.account} {self.account.discord_account} {exc}")
+            return False
+
+        try:
+            await self.http.bind_discord(auth_code)
+        except HTTPException as exc:
+            if not exc.message == "Discord has already been bound":
+                raise
         logger.success(f"{self.account} {self.account.discord_account} Discord bound!")
+        # Так как метод привязки Discord не возвращает id привязанного Discord аккаунта,
+        #   запрашиваем данные о пользователе снова
+        await self.request_self()
         return True
 
     @relogin_on_error

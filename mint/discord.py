@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from loguru import logger
@@ -7,7 +8,6 @@ from better_proxy import Proxy as BetterProxy
 
 import discord
 
-from .errors import BadDiscordAccount
 from .database import AsyncSessionmaker, DiscordAccount, DiscordGuildJoinStatus, update_or_create
 
 
@@ -34,34 +34,43 @@ class DiscordClient(discord.Client):
         options["proxy"] = str(proxy) if proxy else None
         super().__init__(**options)
 
-    async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
-        await self.close()
-        raise
+    async def _run_event(
+        self,
+        coro,
+        event_name: str,
+        *args: Any,
+        **kwargs: Any,
+    ):
+        try:
+            await coro(*args, **kwargs)
+        except asyncio.CancelledError:
+            pass
 
-    # async def start(self, *, reconnect: bool = True):
-    #     max_retries = 3  # Set the maximum number of retries
-    #     for attempt in range(max_retries):
-    #         try:
-    #             await super().start(
-    #                 self.db_account.auth_token, reconnect=reconnect
-    #             )
-    #             break  # If successful, exit the loop
-    #         except (ValueError, RuntimeError, discord.errors.ConnectionClosed) as e:
-    #             if (
-    #                 "is not a valid HTTPStatus" in str(e)
-    #                 or isinstance(e, RuntimeError)
-    #                 or isinstance(e, discord.errors.ConnectionClosed)
-    #             ):
-    #                 if attempt < max_retries - 1:
-    #                     await asyncio.sleep(1)  # Wait before retrying
-    #                     continue  # Retry the request
-    #                 else:
-    #                     raise  # Re-raise the exception after all retries have failed
-    #             else:
-    #                 raise  # Re-raise the exception if it's not related to HTTPStatus
-    #         except discord.errors.LoginFailure:
-    #             self.db_account.status = "BAD_TOKEN"
-    #             raise BadDiscordAccount(self.db_account, f"Bad Discord token")
+    async def start(self, *, reconnect: bool = True):
+        max_retries = 3  # Set the maximum number of retries
+        for attempt in range(max_retries):
+            try:
+                await super().start(
+                    self.db_account.auth_token, reconnect=reconnect
+                )
+                break  # If successful, exit the loop
+            except (ValueError, RuntimeError, discord.errors.ConnectionClosed) as e:
+                if (
+                    "is not a valid HTTPStatus" in str(e)
+                    or isinstance(e, RuntimeError)
+                    or isinstance(e, discord.errors.ConnectionClosed)
+                ):
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1)  # Wait before retrying
+                        continue  # Retry the request
+                    else:
+                        raise  # Re-raise the exception after all retries have failed
+                else:
+                    raise  # Re-raise the exception if it's not related to HTTPStatus
+            except discord.errors.LoginFailure:
+                self.db_account.status = "BAD_TOKEN"
+                logger.warning(f"{self.db_account} Bad token")
+                return
 
     async def on_ready(self):
         async with AsyncSessionmaker() as session:
@@ -78,14 +87,22 @@ class DiscordClient(discord.Client):
             await session.commit()
 
             if self.db_account.required_action:
+                logger.warning(f"{self.db_account} Required action: {self.db_account.required_action}")
                 await self.close()
-                raise BadDiscordAccount(self.db_account, f"Required action: {self.db_account.required_action}")
+                return
 
             if not self.db_account.phone:
+                logger.warning(f"{self.db_account} No phone number")
                 await self.close()
-                raise BadDiscordAccount(self.db_account, f"No phone number")
+                return
 
-            invite = await self.accept_invite(self.invite_code_or_url)
+            try:
+                invite = await self.accept_invite(self.invite_code_or_url)
+            except discord.errors.CaptchaRequired as exc:
+                logger.warning(f"{self.db_account} Captcha required to accept '{self.invite_code_or_url}' invite")
+                await self.close()
+                return
+
             guild_info = f"{invite.guild.name} guild ({invite.approximate_member_count} members)"
             logger.success(f"{self.db_account} {guild_info}: Joined guild")
 
@@ -117,6 +134,7 @@ class DiscordClient(discord.Client):
             channel = await invite.guild.fetch_channel(self.verify_channel_id)
             message = await channel.fetch_message(self.verify_message_id)
             await message.add_reaction(self.verify_reaction)
+            logger.success(f"{self.db_account} {guild_info}: Added verification reaction")
 
         # TODO Повторная попытка на discord.errors.DiscordServerError
         oauth2_location = await self.http.authorize_oauth2(**self.oauth2_data)
@@ -148,5 +166,7 @@ async def join_guild_and_make_oauth2(
         verify_message_id=verify_message_id,
         verify_channel_id=verify_channel_id,
     )
-    await client.start(account.auth_token)
+    await client.start()
+    if not client.auth_code:
+        raise ValueError(f"Failed to authorise Discord account")
     return client.auth_code

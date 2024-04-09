@@ -168,16 +168,14 @@ class DiscordAccount(Base):
 
     async def joined_guild(self, session: AsyncSession, guild_id: int) -> bool | None:
         try:
-            # Создаем асинхронный запрос на выборку
-            async with session.begin():
-                result = await session.execute(
-                    select(DiscordGuildJoinStatus).where(
-                        DiscordGuildJoinStatus.discord_id == self.id,
-                        DiscordGuildJoinStatus.guild_id == guild_id
-                    )
+            result = await session.execute(
+                select(DiscordGuildJoinStatus).where(
+                    DiscordGuildJoinStatus.discord_id == self.id,
+                    DiscordGuildJoinStatus.guild_id == guild_id
                 )
-                join_status = result.scalars().one()  # Получаем единственный результат или вызываем исключение
-                return join_status.joined
+            )
+            join_status = result.scalars().one()  # Получаем единственный результат или вызываем исключение
+            return join_status.joined
         except NoResultFound:
             return None
 
