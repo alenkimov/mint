@@ -236,29 +236,29 @@ class Client:
                                    f" No {sepolia.name} ${sepolia.native_currency.symbol} balance.")
                     continue
 
-                try:
-                    eth_to_mintchain_bridge_amount = to_wei(random.uniform(*CONFIG.BRIDGE.SEPOLIA_ETH_BRIDGE_AMOUNT_RANGE), 'ether')
-                    tx_hash = await eth_to_mintchain_bridge.bridge(wallet, eth_to_mintchain_bridge_amount)
-                    await wait_fot_tx_receipt(sepolia, self.account, tx_hash, value=eth_to_mintchain_bridge_amount)
+                if not mintchain_balance_wei:
+                    logger.info(f"{self.account} [{wallet.address}] Bridging...")
+                    try:
+                        eth_to_mintchain_bridge_amount = to_wei(random.uniform(*CONFIG.BRIDGE.SEPOLIA_ETH_BRIDGE_AMOUNT_RANGE), 'ether')
+                        tx_hash = await eth_to_mintchain_bridge.bridge(wallet, eth_to_mintchain_bridge_amount)
+                        await wait_fot_tx_receipt(sepolia, self.account, tx_hash, value=eth_to_mintchain_bridge_amount)
 
-                    while True:
-                        if mintchain_balance_wei:
-                            mintchain_to_eth_bridge_amount = to_wei(random.uniform(*CONFIG.BRIDGE.MINTCHAIN_ETH_BRIDGE_AMOUNT_RANGE), 'ether')
-                            tx_hash = await mintchain_to_eth_bridge.bridge(wallet, mintchain_to_eth_bridge_amount)
-                            await wait_fot_tx_receipt(mintchain, self.account, tx_hash, value=eth_to_mintchain_bridge_amount)
-                            break
-                        else:
-                            sleep_time = 30  # sec.
-                            logger.info(
-                                f"{self.account} [{wallet.address}]"
-                                f" No {mintchain.name} ${mintchain.native_currency.symbol} balance."
-                                f" Sleeping {sleep_time} sec...")
-                            await asyncio.sleep(sleep_time)
-                            sepolia_balance_wei, mintchain_balance_wei = await request_balances(self.account)
+                    except (ValueError, web3.exceptions.TimeExhausted) as exc:
+                        logger.error(f"{self.account} [{wallet.address}] Failed to bridge: {exc}")
+                        continue
 
-                except (ValueError, web3.exceptions.TimeExhausted) as exc:
-                    logger.error(f"{self.account} [{wallet.address}] Failed to bridge: {exc}")
-                    continue
+                    # mintchain_to_eth_bridge_amount = to_wei(random.uniform(*CONFIG.BRIDGE.MINTCHAIN_ETH_BRIDGE_AMOUNT_RANGE), 'ether')
+                    # tx_hash = await mintchain_to_eth_bridge.bridge(wallet, mintchain_to_eth_bridge_amount)
+                    # await wait_fot_tx_receipt(mintchain, self.account, tx_hash, value=eth_to_mintchain_bridge_amount)
+
+                    while not mintchain_balance_wei:
+                        sleep_time = 30  # sec.
+                        logger.info(
+                            f"{self.account} [{wallet.address}]"
+                            f" No {mintchain.name} ${mintchain.native_currency.symbol} balance."
+                            f" Sleeping {sleep_time} sec...")
+                        await asyncio.sleep(sleep_time)
+                        sepolia_balance_wei, mintchain_balance_wei = await request_balances(self.account)
 
                 claimed_me = await self.http.sumbit_task(task.id)
                 interacted = True
