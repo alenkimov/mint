@@ -6,6 +6,7 @@ from loguru import logger
 from better_web3.utils import sign_message
 from eth_utils import to_wei
 from eth_account.account import LocalAccount
+import web3
 
 from .database import AsyncSessionmaker, MintAccount, MintUser, update_or_create
 from .api.http import HTTPClient
@@ -255,8 +256,8 @@ class Client:
                             await asyncio.sleep(sleep_time)
                             sepolia_balance_wei, mintchain_balance_wei = await request_balances(self.account)
 
-                except ValueError as exc:
-                    logger.error(f"{self.account} [{wallet.address}] {exc}")
+                except (ValueError, web3.exceptions.TimeExhausted) as exc:
+                    logger.error(f"{self.account} [{wallet.address}] Failed to bridge: {exc}")
                     continue
 
                 claimed_me = await self.http.sumbit_task(task.id)
