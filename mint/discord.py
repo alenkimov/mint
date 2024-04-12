@@ -11,6 +11,9 @@ import discord
 from .database import AsyncSessionmaker, DiscordAccount, DiscordGuildJoinStatus, update_or_create
 
 
+invites_paused = False
+
+
 class DiscordClient(discord.Client):
     def __init__(
             self,
@@ -96,12 +99,58 @@ class DiscordClient(discord.Client):
                 await self.close()
                 return
 
+            invite = await self.fetch_invite(self.invite_code_or_url)
+
             try:
-                invite = await self.accept_invite(self.invite_code_or_url)
+                invite = await self.accept_invite(invite)
             except discord.errors.CaptchaRequired as exc:
                 logger.warning(f"{self.db_account} Captcha required to accept '{self.invite_code_or_url}' invite")
+
+                await update_or_create(
+                    session,
+                    DiscordGuildJoinStatus,
+                    {
+                        "discord_account": self.db_account,
+                        "guild_id": invite.guild.id,
+                        "invite_code": invite.code,
+                        "joined": False,
+                    },
+                    discord_account=self.db_account,
+                    guild_id=invite.guild.id,
+                )
+
                 await self.close()
                 return
+
+            except discord.errors.HTTPException as exc:
+                if exc.code == 30001:  # You are at the 100 server limit.
+                    logger.warning(f"{self.db_account} {exc}")
+
+                    await update_or_create(
+                        session,
+                        DiscordGuildJoinStatus,
+                        {
+                            "discord_account": self.db_account,
+                            "guild_id": invite.guild.id,
+                            "invite_code": invite.code,
+                            "joined": False,
+                        },
+                        discord_account=self.db_account,
+                        guild_id=invite.guild.id,
+                    )
+
+                    await self.close()
+                    return
+
+                if exc.code == 40069:  # Invites are currently paused for this server.
+                    logger.warning(f"{self.db_account} {exc}")
+                    global invites_paused
+                    invites_paused = True
+                    await self.close()
+                    return
+
+                else:
+                    raise
 
             guild_info = f"{invite.guild.name} guild ({invite.approximate_member_count} members)"
             logger.success(f"{self.db_account} {guild_info}: Joined guild")
@@ -136,7 +185,6 @@ class DiscordClient(discord.Client):
             await message.add_reaction(self.verify_reaction)
             logger.success(f"{self.db_account} {guild_info}: Added verification reaction")
 
-        # TODO Повторная попытка на discord.errors.DiscordServerError
         oauth2_location = await self.http.authorize_oauth2(**self.oauth2_data)
 
         location_query = dict(URL(oauth2_location["location"]).query)
@@ -166,7 +214,11 @@ async def join_guild_and_make_oauth2(
         verify_message_id=verify_message_id,
         verify_channel_id=verify_channel_id,
     )
-    await client.start()
+    try:
+        await client.start()
+    except discord.errors.DiscordServerError as exc:
+        logger.warning(f"{account} {exc}")
+
     if not client.auth_code:
         raise ValueError(f"Failed to authorise Discord account")
     return client.auth_code

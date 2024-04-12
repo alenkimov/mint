@@ -28,6 +28,7 @@ from common.author import print_author_info
 from common.logger import setup_logger
 from common.excell import get_xlsx_filepaths, get_worksheets
 
+import mint.discord
 from mint.paths import INPUT_DIR, DATABASE_FILEPATH, LOG_DIR
 from mint.config import CONFIG
 from mint.excell import excell
@@ -208,7 +209,8 @@ async def select_and_process_group():
                     interacted |= await mint_client.try_to_verify_wallet()
                     interacted |= await mint_client.try_to_bind_twitter()
                     interacted |= await mint_client.try_to_accept_invite()
-                    interacted |= await mint_client.try_to_bind_discord()
+                    if not mint.discord.invites_paused:
+                        interacted |= await mint_client.try_to_bind_discord()
                     interacted |= await mint_client.complete_tasks()
                     interacted |= await mint_client.claim_energy()
                     interacted |= await mint_client.inject_all()
@@ -267,6 +269,8 @@ async def select_and_process_group():
             return
         else:
             raise exc
+    finally:
+        mint.discord.invites_paused = False
 
 MODULES = {
     '❌  Exit': exit,

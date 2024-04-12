@@ -1,6 +1,12 @@
 import enum
 
 
+# class DiscordGuildJoinStatus(enum.StrEnum):
+#     JOINED = 'JOINED'
+#     REQUIRE_CAPTCHA = 'REQUIRE_CAPTCHA'
+#     SERVERS_LIMIT_REACHED = 'SERVERS_LIMIT_REACHED'
+
+
 class RequiredAction(enum.StrEnum):
     AGREEMENTS = 'AGREEMENTS'
     TOS_UPDATE_ACKNOWLEDGMENT = 'TOS_UPDATE_ACKNOWLEDGMENT'
