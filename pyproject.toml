@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mint"
-version = "0.3.0.b3"
+version = "1.0.0.b1"
 description = "Mint blockchain script"
 authors = ["Alen <alen.kimov@gmail.com>"]
 readme = "README.md"
