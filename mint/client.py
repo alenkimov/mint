@@ -145,7 +145,7 @@ class Client:
             # Если возвращает False, значит попытка войти в гильдию увенчалась неудачей,
             # что, скорее всего, означает то, что войти не получится вовсе и не стоит больше пытаться
             if joined_mint_guild is False:
-                logger.warning(f"{self.account} {self.account.discord_account}"
+                logger.warning(f"{self.account.discord_account}"
                                f" Joining Mint Discord guild failed before")
                 return False
 
@@ -300,7 +300,7 @@ class Client:
                     await session.refresh(self.account.discord_account, attribute_names=["mint_user"])
 
                 if not self.account.discord_account.mint_user:
-                    logger.warning(f"{self.account} {self.account.discord_account}"
+                    logger.warning(f"{self.account.discord_account}"
                                    f" Ни к одному из запрошенных Mint аккаунтов не привязан этот Discord аккаунт")
                     continue
 

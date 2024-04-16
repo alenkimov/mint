@@ -18,6 +18,7 @@ from eth_account import Account
 from eth_account.account import LocalAccount
 from better_proxy import Proxy as BetterProxy
 from twitter.errors import HTTPException as TwitterHTTPException, BadAccount as TwitterBadAccountError
+from tqdm.asyncio import tqdm
 
 import questionary
 from loguru import logger
@@ -57,11 +58,7 @@ logger.enable("twitter")
 DATABASE_URL = f"sqlite:///{DATABASE_FILEPATH}"
 
 
-async def exit():
-    quit()
-
-
-async def select_and_import_table():
+async def select_and_import_table_async():
     table_filepaths = get_xlsx_filepaths(INPUT_DIR)
 
     if len(table_filepaths) == 0:
@@ -164,13 +161,86 @@ async def select_and_import_table():
             await session.commit()
 
 
-async def select_and_process_group():
+async def process_account(mint_account: MintAccount):
+    if mint_account.wallet.verification_failed:
+        logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
+        return
+
+    interacted = False
+
+    retries = CONFIG.CONCURRENCY.MAX_RETRIES
+    while retries > 0:
+        try:
+            # Функции будет вызываться повторно, если не произведен выход из цикла (break)
+
+            mint_client = MintClient(mint_account)
+            interacted |= await mint_client.login()
+            interacted |= await mint_client.try_to_verify_wallet()
+            interacted |= await mint_client.try_to_bind_twitter()
+            interacted |= await mint_client.try_to_accept_invite()
+            if not mint.discord.invites_paused:
+                interacted |= await mint_client.try_to_bind_discord()
+            interacted |= await mint_client.complete_tasks()
+            interacted |= await mint_client.claim_energy()
+            interacted |= await mint_client.inject_all()
+
+            break
+
+        except (TwitterScriptError, DiscordScriptError) as exc:
+            logger.warning(f"{mint_account} {exc}")
+            break
+
+        except (MintHTTPException, TwitterHTTPException, TwitterBadAccountError) as exc:
+            # Повторные попытки на HTTP 5XX (ошибки на стороне сервера)
+            if isinstance(exc, TwitterHTTPException):
+                if exc.response.status_code >= 500:
+                    logger.warning(f"{mint_account} {exc}")
+                else:
+                    logger.error(f"{mint_account} {exc}")
+                    break
+
+            if isinstance(exc, MintHTTPException):
+                if exc.response.status_code >= 500:
+                    logger.warning(f"{mint_account} {exc}")
+                if exc.message == "System Maintenance":
+                    raise
+                else:
+                    logger.error(f"{mint_account} {exc}")
+                    break
+
+            logger.error(f"{mint_account} {exc}")
+            break
+
+        except requests.errors.RequestsError as exc:
+            if exc.code in (23, 28, 35, 56, 7):
+                logger.warning(f"{mint_account} (May be bad or slow proxy) {exc}")
+            else:
+                raise
+
+        finally:
+            sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
+            if interacted and sleep_time > 0:
+                logger.info(f"{mint_account} Sleep {sleep_time} sec.")
+                await asyncio.sleep(sleep_time)
+
+        retries -= 1
+        if retries > 0:
+            # Пауза перед следующей попыткой
+            sleep_time = CONFIG.CONCURRENCY.DELAY_BETWEEN_RETRIES
+            logger.warning(f"{mint_account}"
+                           f" Не удалось завершить выполнение."
+                           f" Повторная попытка через {sleep_time}s."
+                           f" Осталось попыток: {retries}.")
+            await asyncio.sleep(sleep_time)
+
+
+async def select_and_process_group_async():
     async with AsyncSessionmaker() as session:
         # Запроса групп из бд
         groups = await get_groups(session)
 
         if not groups:
-            print(f"Import accounts before!")
+            print(f"No accounts in database!")
             return
 
         # Пользователь выбирает группы (хотя бы одну)
@@ -191,78 +261,23 @@ async def select_and_process_group():
     #     print(f"Аккаунты равномерно распределены по суткам. Не выключайте скрипт.")
 
     try:
-        for mint_account in mint_accounts:
+        if CONFIG.CONCURRENCY.MAX_TASKS > 1:
+            # Create a semaphore with the specified max tasks
+            semaphore = asyncio.Semaphore(CONFIG.CONCURRENCY.MAX_TASKS)
 
-            if mint_account.wallet.verification_failed:
-                logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
-                continue
+            async def process_account_with_semaphore(mint_account):
+                async with semaphore:
+                    await process_account(mint_account)
 
-            interacted = False
+            # Create a list of tasks to be executed concurrently
+            tasks = [process_account_with_semaphore(mint_account) for mint_account in mint_accounts]
 
-            retries = CONFIG.CONCURRENCY.MAX_RETRIES
-            while retries > 0:
-                try:
-                    # Функции будет вызываться повторно, если не произведен выход из цикла (break)
+            # Wait for all tasks to complete
+            await tqdm.gather(*tasks)
+        else:
+            async for mint_account in tqdm(mint_accounts):
+                await process_account(mint_account)
 
-                    mint_client = MintClient(mint_account)
-                    interacted |= await mint_client.login()
-                    interacted |= await mint_client.try_to_verify_wallet()
-                    interacted |= await mint_client.try_to_bind_twitter()
-                    interacted |= await mint_client.try_to_accept_invite()
-                    if not mint.discord.invites_paused:
-                        interacted |= await mint_client.try_to_bind_discord()
-                    interacted |= await mint_client.complete_tasks()
-                    interacted |= await mint_client.claim_energy()
-                    interacted |= await mint_client.inject_all()
-
-                    break
-
-                except (TwitterScriptError, DiscordScriptError) as exc:
-                    logger.warning(f"{mint_account} {exc}")
-                    break
-
-                except (MintHTTPException, TwitterHTTPException, TwitterBadAccountError) as exc:
-                    # Повторные попытки на HTTP 5XX (ошибки на стороне сервера)
-                    if isinstance(exc, TwitterHTTPException):
-                        if exc.response.status_code >= 500:
-                            logger.warning(f"{mint_account} {exc}")
-                        else:
-                            logger.error(f"{mint_account} {exc}")
-                            break
-
-                    if isinstance(exc, MintHTTPException):
-                        if exc.response.status_code >= 500:
-                            logger.warning(f"{mint_account} {exc}")
-                        if exc.message == "System Maintenance":
-                            raise
-                        else:
-                            logger.error(f"{mint_account} {exc}")
-                            break
-
-                    logger.error(f"{mint_account} {exc}")
-                    break
-
-                except requests.errors.RequestsError as exc:
-                    if exc.code in (23, 28, 35, 56, 7):
-                        logger.warning(f"{mint_account} (May be bad or slow proxy) {exc}")
-                    else:
-                        raise
-
-                finally:
-                    sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)
-                    if interacted and sleep_time > 0:
-                        logger.info(f"{mint_account} Sleep {sleep_time} sec.")
-                        await asyncio.sleep(sleep_time)
-
-                retries -= 1
-                if retries > 0:
-                    # Пауза перед следующей попыткой
-                    sleep_time = CONFIG.CONCURRENCY.DELAY_BETWEEN_RETRIES
-                    logger.warning(f"{mint_account}"
-                                   f" Не удалось завершить выполнение."
-                                   f" Повторная попытка через {sleep_time}s."
-                                   f" Осталось попыток: {retries}.")
-                    await asyncio.sleep(sleep_time)
     except MintHTTPException as exc:
         if exc.message == "System Maintenance":
             logger.warning(f"На сайте mintchain происходит обновление. Попробуйте запустить скрипт позже.")
@@ -272,19 +287,16 @@ async def select_and_process_group():
     finally:
         mint.discord.invites_paused = False
 
-MODULES = {
-    '❌  Exit': exit,
-    '➡️ Import xlsx table': select_and_import_table,
-    '➡️ Select group and run': select_and_process_group,
-}
+
+def select_and_import_table():
+    asyncio.run(select_and_import_table_async())
 
 
-async def select_module(modules) -> Callable:
-    module_name = await questionary.select("Select module:", choices=list(modules.keys())).ask_async()
-    return modules[module_name]
+def select_and_process_group():
+    asyncio.run(select_and_process_group_async())
 
 
-async def main():
+async def update_database_or_quite_async():
     current_revision = await alembic_utils.get_current_revision()
     latest_revision = alembic_utils.get_latest_revision()
     if current_revision != latest_revision:
@@ -297,17 +309,30 @@ async def main():
         ).ask_async()
 
         if not should_upgrade:
-            return
+            quit()
 
         await alembic_utils.upgrade()
 
-    print_project_info()
-    print_author_info()
-    while True:
-        module = await select_module(MODULES)
 
-        await module()
+MODULES = {
+    '❌  Quit': quit,
+    '➡️ Import xlsx table': select_and_import_table,
+    '➡️ Select group and run': select_and_process_group,
+}
+
+
+def select_module(modules: dict[str: Callable]) -> Callable:
+    module_name = questionary.select("Select module:", choices=list(modules.keys())).ask()
+    return modules[module_name]
+
+
+def main():
+    asyncio.run(update_database_or_quite_async())
+    while True:
+        print_project_info()
+        print_author_info()
+        select_module(MODULES)()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
