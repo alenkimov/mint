@@ -44,7 +44,7 @@ class HTTPClient(BaseHTTPClient):
             if query_auth:
                 params = kwargs["params"] = kwargs.get("params") or {}
                 params["jwtToken"] = self.auth_token
-            if payload_auth:
+            elif payload_auth:
                 payload = kwargs["json"] = kwargs.get("json") or {}
                 payload["jwtToken"] = self.auth_token
             else:
@@ -91,8 +91,7 @@ class HTTPClient(BaseHTTPClient):
             "signature": signature,
             "message": message,
         }
-
-        response, data = await self.request("POST", url, json=payload)
+        response, data = await self.request("POST", url, json=payload, auth=False)
         self.auth_token = data["access_token"]
         return User(**data["user"])
 
