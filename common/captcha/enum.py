@@ -14,3 +14,16 @@ class ReCaptchaV3TypeEnm(str, MyEnum):
     ReCaptchaV3EnterpriseTask = "ReCaptchaV3EnterpriseTask"
     ReCaptchaV3TaskProxyLess = "ReCaptchaV3TaskProxyLess"
     ReCaptchaV3EnterpriseTaskProxyLess = "ReCaptchaV3EnterpriseTaskProxyLess"
+
+
+class HCaptchaTypeEnm(str, MyEnum):
+    HCaptchaTask = "HCaptchaTask"
+    HCaptchaTaskProxyless = "HCaptchaTaskProxyless"
+    HCaptchaEnterpriseTask = "HCaptchaEnterpriseTask"
+    HCaptchaEnterpriseTaskProxyLess = "HCaptchaEnterpriseTaskProxyLess"
+    HCaptchaTurboTask = "HCaptchaTurboTask"
+    HCaptchaClassification = "HCaptchaClassification"
+
+
+class HCaptchaClassificationTypeEnm(str, MyEnum):
+    HCaptchaClassification = "HCaptchaClassification"
