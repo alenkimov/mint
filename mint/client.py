@@ -41,8 +41,6 @@ DISCORD_MINTCHAIN_GUILD_VERIFY_CHANNEL_ID = 1181968185206001726
 DISCORD_MINTCHAIN_GUILD_VERIFY_MESSAGE_ID = 1181968186879516744
 DISCORD_MINTCHAIN_GUILD_VERIFY_REACTION = '✅'
 
-TASK_IDS_TO_IGNORE = {6, }
-
 
 class Client:
     def __init__(self, account: MintAccount):
@@ -248,7 +246,10 @@ class Client:
             proxy = self.account.proxy.better_proxy
 
         for task in unclaimed_tasks:
-            if task.id == 1:
+            if task.id in CONFIG.TASKS.TASK_IDS_TO_IGNORE:
+                pass
+
+            elif task.id == 1:
                 async with TwitterClient(self.account.twitter_account, proxy=proxy) as twitter_client:  # type: TwitterClient
                     await twitter_client.follow("1643440230903730176")
                 claimed_me = await self.http.sumbit_task(task.id)
@@ -329,9 +330,6 @@ Join Mint Forest here: https://mintchain.io/mint-forest
                 claimed_me = await self.http.submit_discord_task()
                 interacted = True
                 logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
-
-            elif task.id in TASK_IDS_TO_IGNORE:
-                pass
 
             else:
                 logger.warning(f"{self.account} Can't complete task '{task.name}'")

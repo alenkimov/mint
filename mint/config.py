@@ -18,6 +18,10 @@ class BridgeConfig(BaseModel):
     MINTCHAIN_ETH_BRIDGE_AMOUNT_RANGE: tuple[float, float] = (0.0001, 0.0005)
 
 
+class TasksConfig(BaseModel):
+    TASK_IDS_TO_IGNORE: tuple = (6, )
+
+
 class Config(BaseModel):
     LOGGING: LoggingConfig
     CONCURRENCY: ConcurrencyConfig
@@ -26,6 +30,7 @@ class Config(BaseModel):
     REQUESTS: RequestsConfig
     TRANSACTION: TransactionConfig
     BRIDGE: BridgeConfig
+    TASKS: TasksConfig
 
 
 CONFIG = Config(**load_toml(CONFIG_TOML))
