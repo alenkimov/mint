@@ -178,12 +178,13 @@ class HTTPClient(BaseHTTPClient):
         tasks = [Task(**task_data) for task_data in data]
         return tasks
 
-    async def sumbit_task(self, task_id: int):
+    async def sumbit_task(self, task_id: int, twitter_url: str = None):
         """
         :return: ME amount
         """
         url = "https://www.mintchain.io/api/tree/task-submit"
         payload = {"id": task_id}
+        if twitter_url: payload["twitterurl"] = twitter_url
         response, data = await self.request("POST", url, json=payload)
         me_amount = data["amount"]
         return me_amount

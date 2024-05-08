@@ -163,7 +163,7 @@ async def select_and_import_table_async():
 
 async def process_account(mint_account: MintAccount):
     if mint_account.wallet.verification_failed:
-        logger.warning(f"{mint_account} {mint_account.wallet} Wallet failed verification before")
+        logger.warning(f"{mint_account} {mint_account.wallet.address} Wallet failed verification before")
         return
 
     interacted = False

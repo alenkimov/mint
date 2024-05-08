@@ -242,10 +242,30 @@ class Client:
 
         tasks = await self.http.request_task_list()
         unclaimed_tasks: list[Task] = [task for task in tasks if not task.claimed]
-        for task in unclaimed_tasks:
 
-            if task.spec.startswith("twitter"):
+        proxy = None
+        if self.account.proxy:
+            proxy = self.account.proxy.better_proxy
+
+        for task in unclaimed_tasks:
+            if task.id == 1:
+                async with TwitterClient(self.account.twitter_account, proxy=proxy) as twitter_client:  # type: TwitterClient
+                    await twitter_client.follow("1643440230903730176")
                 claimed_me = await self.http.sumbit_task(task.id)
+                interacted = True
+                logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
+
+            elif task.id == 3:
+                async with TwitterClient(self.account.twitter_account, proxy=proxy) as twitter_client:  # type: TwitterClient
+                    text = """I'm collecting @Mint_Blockchain's ME $MINT in the #MintForest🌳!
+
+Mint is the L2 for NFT industry, powered by @nftscan_com and @Optimism.
+
+Join Mint Forest here: https://mintchain.io/mint-forest 
+
+#MintBlockchain #L2forNFT"""
+                    tweet = await twitter_client.tweet(text)
+                claimed_me = await self.http.sumbit_task(task.id, twitter_url=tweet.url)
                 interacted = True
                 logger.success(f"{self.account} Task '{task.name}' completed! Claimed {claimed_me} energy")
 
@@ -364,15 +384,15 @@ class Client:
                     await session.commit()
                 raise
 
-            elif exc.message == "Wallet was registered, please login again":
-                logger.info(f"{self.account} {self.account.wallet} Wallet already verified.")
+            elif exc.message == "Wallet was registed, please login again":
+                logger.info(f"{self.account} {self.account.wallet.address} Wallet already verified.")
                 interacted = await self.relogin()
                 await self.request_self()
                 return interacted
             else:
                 raise
 
-        logger.success(f"{self.account} {self.account.wallet} Wallet verified!")
+        logger.success(f"{self.account} {self.account.wallet.address} Wallet verified!")
         return True
 
     @relogin_on_error
