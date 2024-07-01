@@ -13,7 +13,7 @@ from ..paths import ABI_DIR
 
 
 class MintchainToEthBridge(Contract):
-    DEFAULT_ABI = load_json(ABI_DIR / "mintchain_to_eth.json")
+    ABI = load_json(ABI_DIR / "mintchain_to_eth.json")
     DEFAULT_ADDRESS = to_checksum_address("0x4200000000000000000000000000000000000010")
     L2_TOKEN = to_checksum_address("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000")
 
@@ -26,7 +26,7 @@ class MintchainToEthBridge(Contract):
             extra_data: bytes = b""
     ) -> AsyncContractFunction:
         l2Token = l2Token or self.L2_TOKEN
-        return self.functions.withdraw(l2Token, amount, min_gas_limit, extra_data)
+        return self.contract.functions.withdraw(l2Token, amount, min_gas_limit, extra_data)
 
     async def bridge(
             self,
@@ -39,7 +39,7 @@ class MintchainToEthBridge(Contract):
 
 
 class EthToMintchainBridge(Contract):
-    DEFAULT_ABI = load_json(ABI_DIR / "eth_to_mintchain_bridge.json")
+    ABI = load_json(ABI_DIR / "eth_to_mintchain_bridge.json")
     DEFAULT_ADDRESS = to_checksum_address("0xd9d4b3ad7edb8f852ab75afa66c1456c46fef210")
 
     def _deposit(
@@ -47,7 +47,7 @@ class EthToMintchainBridge(Contract):
             l2_gas: Wei | int = 200_000,
             data: bytes = b"",
     ) -> AsyncContractFunction:
-        return self.functions.depositETH(l2_gas, data)
+        return self.contract.functions.depositETH(l2_gas, data)
 
     async def bridge(
             self,

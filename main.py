@@ -215,7 +215,8 @@ async def process_account(mint_account: MintAccount):
             if exc.code in (23, 28, 35, 56, 7):
                 logger.warning(f"{mint_account} (May be bad or slow proxy) {exc}")
             else:
-                raise
+                logger.error(f"{mint_account} {exc}")
+                break
 
         finally:
             sleep_time = randint(*CONFIG.CONCURRENCY.DELAY_BETWEEN_ACCOUNTS)

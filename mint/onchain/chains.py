@@ -1,22 +1,19 @@
-from better_web3 import Chain, request_chains_data, chain_from_caip_2, CAIP2ChainData
+from better_web3 import Chain, get_chain
 
 from common.utils import load_toml
 
 from ..paths import CHAINS_TOML
 
 LOCAL_CHAINS_CONFIG = load_toml(CHAINS_TOML)
-CHAINS_CAIP2_DATA = request_chains_data()
 
 
-def get_chain(chain_id: int) -> Chain:
-    chain_data: CAIP2ChainData = CHAINS_CAIP2_DATA[chain_id]
+def _get_chain(chain_id: int) -> Chain:
     chain_config = LOCAL_CHAINS_CONFIG.get(str(chain_id), {})
-
-    if "rpc" in chain_config:
-        chain_data.rpc_list.insert(0, chain_config.pop("rpc"))
-
-    return chain_from_caip_2(chain_data, **chain_config)
+    return get_chain(chain_id, **chain_config)
 
 
 sepolia   = get_chain(11155111)
 mintchain = get_chain(1686)
+
+# sepolia = Chain('https://eth-sepolia.g.alchemy.com/v2/BQ43RWiHw-hqyM4NVLrzcYSm-ybT5tYN')
+# mintchain = Chain('https://testnet-rpc.mintchain.io')
