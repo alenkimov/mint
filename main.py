@@ -161,7 +161,7 @@ async def select_and_import_table_async():
             await session.commit()
 
 
-async def process_account(mint_account: MintAccount):
+async def process_account(mint_account: MintAccount, mint_green_id: bool, bind_discord: bool):
     if mint_account.wallet.verification_failed:
         logger.warning(f"{mint_account} {mint_account.wallet.address} Wallet failed verification before")
         return
@@ -178,12 +178,13 @@ async def process_account(mint_account: MintAccount):
             interacted |= await mint_client.try_to_verify_wallet()
             interacted |= await mint_client.try_to_bind_twitter()
             interacted |= await mint_client.try_to_accept_invite()
-            if not mint.discord.invites_paused:
+            if not mint.discord.invites_paused and bind_discord:
                 interacted |= await mint_client.try_to_bind_discord()
             interacted |= await mint_client.complete_tasks()
             interacted |= await mint_client.claim_energy()
             interacted |= await mint_client.inject_all()
-
+            if mint_green_id:
+                await mint_client.mint_green_id()
             break
 
         except (TwitterScriptError, DiscordScriptError) as exc:
@@ -261,6 +262,9 @@ async def select_and_process_group_async():
     # if run_forever:
     #     print(f"Аккаунты равномерно распределены по суткам. Не выключайте скрипт.")
 
+    mint_green_id = await questionary.confirm(f"Mint Green ID?", default=False).ask_async()
+    bind_discord = await questionary.confirm(f"Bind discord?", default=False).ask_async()
+
     try:
         if CONFIG.CONCURRENCY.MAX_TASKS > 1:
             # Create a semaphore with the specified max tasks
@@ -268,7 +272,7 @@ async def select_and_process_group_async():
 
             async def process_account_with_semaphore(mint_account):
                 async with semaphore:
-                    await process_account(mint_account)
+                    await process_account(mint_account, mint_green_id)
 
             # Create a list of tasks to be executed concurrently
             tasks = [process_account_with_semaphore(mint_account) for mint_account in mint_accounts]
@@ -277,7 +281,7 @@ async def select_and_process_group_async():
             await tqdm.gather(*tasks)
         else:
             async for mint_account in tqdm(mint_accounts):
-                await process_account(mint_account)
+                await process_account(mint_account, mint_green_id, bind_discord)
 
     except MintHTTPException as exc:
         if exc.message == "System Maintenance":

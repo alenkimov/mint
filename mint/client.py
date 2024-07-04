@@ -233,6 +233,27 @@ class Client:
         return claimed
 
     @relogin_on_error
+    async def mint_green_id(self):
+        # Mint Green ID
+        token_id, claimed = await self.http.get_green_id()
+        _eth_account = self.account.wallet.eth_account
+        if not claimed:
+            balance_wei = await mintchain.eth.get_balance(_eth_account.address)
+            if balance_wei:
+                contract_address = "0x776Fcec07e65dC03E35a9585f9194b8a9082CDdb"
+                tx_params = {
+                    "data": f"0x379607f500000000000000000000000000000000000000000000000000000000000{hex(int(token_id))[2:]}"}
+                tx_params = await mintchain._build_tx_base_params(address_from=_eth_account.address,
+                                                                  address_to=contract_address, tx_params=tx_params)
+                gas = await mintchain.eth.estimate_gas(tx_params)
+                tx_params = await mintchain._build_tx_base_params(gas, tx_params=tx_params)
+                tx_params = await mintchain._build_tx_fee_params(tx_params=tx_params)
+                tx_hash = await mintchain.sign_and_send_tx(_eth_account, tx_params)
+                logger.success(f"{self.account} Green ID Minted.\n\tTx Hash: {tx_hash}")
+            else:
+                logger.warning(f"{self.account} No ETH Mintchain mainnet balance to mint greed ID")
+
+    @relogin_on_error
     async def complete_tasks(self) -> bool:
         """
         :return: Interacted (Tasks completed or not)
@@ -245,23 +266,6 @@ class Client:
         proxy = None
         if self.account.proxy:
             proxy = self.account.proxy.better_proxy
-
-        # Mint Green ID
-        token_id, claimed = await self.http.get_green_id()
-        _eth_account = self.account.wallet.eth_account
-        if not claimed:
-            balance_wei = await mintchain.eth.get_balance(_eth_account.address)
-            if balance_wei:
-                contract_address = "0x776Fcec07e65dC03E35a9585f9194b8a9082CDdb"
-                tx_params = {"data": f"0x379607f500000000000000000000000000000000000000000000000000000000000{hex(int(token_id))[2:]}"}
-                tx_params = await mintchain._build_tx_base_params(address_from=_eth_account.address, address_to=contract_address, tx_params=tx_params)
-                gas = await mintchain.eth.estimate_gas(tx_params)
-                tx_params = await mintchain._build_tx_base_params(gas, tx_params=tx_params)
-                tx_params = await mintchain._build_tx_fee_params(tx_params=tx_params)
-                tx_hash = await mintchain.sign_and_send_tx(_eth_account, tx_params)
-                logger.success(f"{self.account} Green ID Minted.\n\tTx Hash: {tx_hash}")
-            else:
-                logger.warning(f"{self.account} No ETH Mintchain mainnet balance to mint greed ID")
 
         for task in unclaimed_tasks:
             if task.id in CONFIG.TASKS.TASK_IDS_TO_IGNORE:
