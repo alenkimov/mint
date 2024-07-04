@@ -217,3 +217,8 @@ class HTTPClient(BaseHTTPClient):
         url = "https://www.mintchain.io/api/wallet/verify"
         response, data = await self.request("POST", url, payload_auth=True)
         return data["data"]
+
+    async def get_green_id(self) -> tuple[str, bool]:
+        url = "https://www.mintchain.io/api/tree/green-id"
+        response, data = await self.request("GET", url)
+        return data["token_id"], data["claimed"]

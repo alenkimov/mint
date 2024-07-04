@@ -5,7 +5,7 @@ from eth_utils import from_wei
 
 from ..config import CONFIG
 from ..database import MintAccount
-from .chains import sepolia, mintchain
+from .chains import sepolia, mintchain_testnet
 
 
 def tx_hash_info(chain: Chain, account: MintAccount, tx_hash: HexStr | str, value: Wei | int = None) -> str:
@@ -48,10 +48,10 @@ async def request_balances(account: MintAccount) -> tuple[Wei, Wei]:
     wallet = account.wallet.eth_account
 
     sepolia_balance_wei = await sepolia.get_balance(wallet.address)
-    mintchain_balance_wei = await mintchain.get_balance(wallet.address)
+    mintchain_balance_wei = await mintchain_testnet.get_balance(wallet.address)
     sepolia_balance_ether = from_wei(sepolia_balance_wei, 'ether')
     mintchain_balance_ether = from_wei(mintchain_balance_wei, 'ether')
     logger.info(f"{account} [{wallet.address}] Balances:"
                 f"\n\t{sepolia.name}: {sepolia_balance_ether} ${sepolia.native_currency.symbol}"
-                f"\n\t{mintchain.name}: {mintchain_balance_ether} ${mintchain.native_currency.symbol}")
+                f"\n\t{mintchain_testnet.name}: {mintchain_balance_ether} ${mintchain_testnet.native_currency.symbol}")
     return sepolia_balance_wei, mintchain_balance_wei

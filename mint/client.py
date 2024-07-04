@@ -16,9 +16,10 @@ from .twitter import TwitterClient
 from .discord import join_guild_and_make_oauth2
 from .errors import TwitterScriptError
 from .onchain.scripts import request_balances, wait_fot_tx_receipt
-from .onchain.chains import sepolia, mintchain
+from .onchain.chains import sepolia, mintchain_testnet, mintchain
 from .onchain.contracts import eth_to_mintchain_bridge
 from .config import CONFIG
+
 
 TWITTER_OAUTH2_PARAMS = {
     'state': 'mintchain',
@@ -245,6 +246,23 @@ class Client:
         if self.account.proxy:
             proxy = self.account.proxy.better_proxy
 
+        # Mint Green ID
+        token_id, claimed = await self.http.get_green_id()
+        _eth_account = self.account.wallet.eth_account
+        if not claimed:
+            balance_wei = await mintchain.eth.get_balance(_eth_account.address)
+            if balance_wei:
+                contract_address = "0x776Fcec07e65dC03E35a9585f9194b8a9082CDdb"
+                tx_params = {"data": f"0x379607f500000000000000000000000000000000000000000000000000000000000{hex(int(token_id))[2:]}"}
+                tx_params = await mintchain._build_tx_base_params(address_from=_eth_account.address, address_to=contract_address, tx_params=tx_params)
+                gas = await mintchain.eth.estimate_gas(tx_params)
+                tx_params = await mintchain._build_tx_base_params(gas, tx_params=tx_params)
+                tx_params = await mintchain._build_tx_fee_params(tx_params=tx_params)
+                tx_hash = await mintchain.sign_and_send_tx(_eth_account, tx_params)
+                logger.success(f"{self.account} Green ID Minted.\n\tTx Hash: {tx_hash}")
+            else:
+                logger.warning(f"{self.account} No ETH Mintchain mainnet balance to mint greed ID")
+
         for task in unclaimed_tasks:
             if task.id in CONFIG.TASKS.TASK_IDS_TO_IGNORE:
                 pass
@@ -298,7 +316,7 @@ Join Mint Forest here: https://mintchain.io/mint-forest
                         sleep_time = 30  # sec.
                         logger.info(
                             f"{self.account} [{wallet.address}]"
-                            f" No {mintchain.name} ${mintchain.native_currency.symbol} balance."
+                            f" No {mintchain_testnet.name} ${mintchain_testnet.native_currency.symbol} balance."
                             f" Sleeping {sleep_time} sec...")
                         await asyncio.sleep(sleep_time)
                         sepolia_balance_wei, mintchain_balance_wei = await request_balances(self.account)

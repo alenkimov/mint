@@ -12,8 +12,9 @@ def _get_chain(chain_id: int) -> Chain:
     return get_chain(chain_id, **chain_config)
 
 
-sepolia   = get_chain(11155111)
-mintchain = get_chain(1686)
+sepolia   = _get_chain(11155111)
+mintchain_testnet = _get_chain(1686)
+mintchain = _get_chain(185)
 
 # sepolia = Chain('https://eth-sepolia.g.alchemy.com/v2/BQ43RWiHw-hqyM4NVLrzcYSm-ybT5tYN')
 # mintchain = Chain('https://testnet-rpc.mintchain.io')

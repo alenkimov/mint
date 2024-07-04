@@ -7,7 +7,7 @@ from web3.contract.async_contract import AsyncContractFunction
 
 from common.utils import load_json
 
-from .chains import sepolia, mintchain
+from .chains import sepolia, mintchain_testnet
 
 from ..paths import ABI_DIR
 
@@ -60,4 +60,4 @@ class EthToMintchainBridge(Contract):
 
 
 eth_to_mintchain_bridge = EthToMintchainBridge(sepolia)
-mintchain_to_eth_bridge = MintchainToEthBridge(mintchain)
+mintchain_to_eth_bridge = MintchainToEthBridge(mintchain_testnet)
