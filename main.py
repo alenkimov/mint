@@ -272,7 +272,7 @@ async def select_and_process_group_async():
 
             async def process_account_with_semaphore(mint_account):
                 async with semaphore:
-                    await process_account(mint_account, mint_green_id)
+                    await process_account(mint_account, mint_green_id, bind_discord)
 
             # Create a list of tasks to be executed concurrently
             tasks = [process_account_with_semaphore(mint_account) for mint_account in mint_accounts]
