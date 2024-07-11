@@ -69,7 +69,7 @@ class Client:
         message = (f"You are participating in the Mint Forest event: "
                    f"\n {self.account.wallet.eth_account.address}"
                    f"\n\nNonce: {nonce}")
-        signature = sign_message(message, self.account.wallet.eth_account)
+        signature = sign_message(self.account.wallet.eth_account, message)
         # Нужно передавать именно ChecksumAddress
         user = await self.http.login(self.account.wallet.eth_account.address, message, f"0x{signature}")
         logger.success(f"{self.account} Logged in")
